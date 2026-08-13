@@ -68,6 +68,7 @@ Ran the `/speckit-constitution` skill to derive
 `.specify/memory/constitution.md` from requirements — domain language, boundaries, and standards only.
 
 The raw prompt:
+
 ```
 /speckit-constitution add constitution based on below requirements. Extract high-level domain rules and functional conventions—do not transcribe feature requirements directly.
 
@@ -112,4 +113,10 @@ The raw prompt (run with no argument):
 
 ```
 /speckit-clarify
+```
+
+It can also be supplied specific information:
+
+```
+/speckit-clarify As this is a sample/demo application, we do not want to implement authorization and authentication currently
 ```

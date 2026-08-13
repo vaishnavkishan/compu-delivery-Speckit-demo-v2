@@ -17,6 +17,7 @@
 - Q: If a client's contract discount terms change after an order's Net Total was already calculated but before Final Delivery, should the order reprice? → A: No — Net Total is locked at intake and is not recalculated due to later contract renegotiation.
 - Q: If a client submits a bulk order listing the same hardware SKU twice as separate line items, what should the system do? → A: Allow as separate line items; each submitted line item is kept distinct and Gross Total sums all line items as submitted, with no auto-merging.
 - Q: When a client tries to view or cancel an order ID that either doesn't exist or belongs to a different client, should the response be the same in both cases? → A: Yes — a single generic "not found" response for both, so a client cannot distinguish nonexistence from another client's ownership (see FR-018).
+- Q: Since this demo won't implement authentication or authorization, how should the system know which enterprise client or operator is behind a given request? → A: Requests include a caller-supplied client/operator identifier that the system trusts without verifying credentials; per-client data scoping and operator-only restrictions still apply based on that identifier, but no login or credential verification is performed.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -71,7 +72,7 @@ An enterprise client cancels one of their own orders while it is still active (i
 
 ### User Story 4 - Progress an Order Through Fulfillment Stages (Priority: P3)
 
-An authorized internal operator advances a bulk order through its defined lifecycle stages (e.g., from Intake to Processing to Shipped to Final Delivery) as fulfillment work is actually completed, so that the order's status always reflects real-world progress.
+An internal operator, identified via a caller-supplied operator identifier, advances a bulk order through its defined lifecycle stages (e.g., from Intake to Processing to Shipped to Final Delivery) as fulfillment work is actually completed, so that the order's status always reflects real-world progress.
 
 **Why this priority**: Order tracking has no value unless something drives the lifecycle forward; this capability is what makes Order History (User Story 2) meaningful over time. It is lower priority than the client-facing stories because it is an enabling/back-office capability rather than a directly requested client interaction.
 
@@ -79,7 +80,7 @@ An authorized internal operator advances a bulk order through its defined lifecy
 
 **Acceptance Scenarios**:
 
-1. **Given** an order in Intake status, **When** an authorized operator advances it to the next defined lifecycle stage, **Then** the system updates the order's status and records the transition with a timestamp.
+1. **Given** an order in Intake status, **When** an operator advances it to the next defined lifecycle stage, **Then** the system updates the order's status and records the transition with a timestamp.
 2. **Given** an order at Final Delivery, **When** any attempt is made to change its status further, **Then** the system rejects the change because Final Delivery is a terminal state.
 3. **Given** an order that has been Cancelled, **When** any attempt is made to advance it through fulfillment, **Then** the system rejects the change because Cancelled is a terminal state.
 4. **Given** a sequence of lifecycle stages, **When** an operator attempts to skip a stage or move an order backward to a prior stage, **Then** the system rejects the out-of-order transition.
@@ -99,18 +100,18 @@ An authorized internal operator advances a bulk order through its defined lifecy
 
 ### Functional Requirements
 
-- **FR-001**: System MUST allow an authenticated enterprise client to submit a bulk hardware order consisting of one or more line items, each specifying a hardware SKU and quantity.
+- **FR-001**: System MUST allow an enterprise client, identified via a caller-supplied client identifier (trusted as-is; not verified by login or credentials), to submit a bulk hardware order consisting of one or more line items, each specifying a hardware SKU and quantity.
 - **FR-002**: System MUST calculate a Gross Total for each submitted order as the sum of its line items' list prices and quantities.
 - **FR-003**: System MUST calculate the Net Total for each order by applying the submitting client's current, pre-negotiated contract discount terms to the Gross Total, and MUST NOT apply any manually overridden, estimated, or generic discount in place of the client's actual contract terms.
 - **FR-004**: System MUST block an order from being finalized, and MUST clearly communicate the reason, when the submitting client's contract discount terms are missing, ambiguous, or expired at the time of submission.
 - **FR-005**: System MUST assign every accepted order a single, well-defined lifecycle status drawn from an ordered set of stages (Intake, Processing, Shipped, Final Delivery), with Cancellation as an allowed branch at any point prior to Final Delivery, and with Backordered as an allowed on-hold branch from Processing (used when hardware isn't immediately available).
 - **FR-006**: System MUST prevent an order from skipping a defined lifecycle stage, moving backward to a prior stage, or changing status after it has reached a terminal state (Final Delivery or Cancelled), except that an order in Backordered MAY move back to Processing once stock becomes available — this specific reversal is not considered a backward-stage violation.
 - **FR-007**: System MUST record, for every lifecycle state transition and every Net Total calculation, the point in time it occurred and the actor or event that triggered it, and MUST preserve this history rather than overwriting it.
-- **FR-008**: System MUST allow an authenticated enterprise client to view a history of their own bulk orders, including each order's line items, Gross Total, Net Total, current lifecycle status, and relevant dates.
+- **FR-008**: System MUST allow an enterprise client, identified via a caller-supplied client identifier (trusted as-is; not verified by login or credentials), to view a history of their own bulk orders, including each order's line items, Gross Total, Net Total, current lifecycle status, and relevant dates.
 - **FR-009**: System MUST restrict an enterprise client's order history and order detail views to that client's own orders only, and MUST NOT expose another client's orders, pricing, or contract discount terms.
-- **FR-010**: System MUST allow an authenticated enterprise client to cancel one of their own orders only while that order is Active (has not reached Final Delivery and has not already been cancelled).
+- **FR-010**: System MUST allow an enterprise client, identified via a caller-supplied client identifier (trusted as-is; not verified by login or credentials), to cancel one of their own orders only while that order is Active (has not reached Final Delivery and has not already been cancelled).
 - **FR-011**: System MUST reject a cancellation request for an order that has already reached Final Delivery or already been cancelled, and MUST communicate the specific reason for rejection. For an order that does not belong to the requesting client (see FR-018), the system MUST NOT reveal that reason and MUST instead return a generic not-found response.
-- **FR-012**: System MUST allow only authorized internal operators (not enterprise clients) to advance an order from one lifecycle stage to the next.
+- **FR-012**: System MUST allow only internal operators, identified via a caller-supplied operator identifier (trusted as-is; not verified by login or credentials, and distinct from enterprise clients), to advance an order from one lifecycle stage to the next.
 - **FR-013**: System MUST treat Bulk Order lifecycle status, cancellation, and delivery confirmation as properties of the order as a whole, not of individual line items.
 - **FR-014**: System MUST reject a submitted order containing a line item with a zero or negative quantity, or a hardware SKU the system does not recognize.
 - **FR-015**: System MUST reject a submitted order that contains zero line items.
@@ -120,7 +121,7 @@ An authorized internal operator advances a bulk order through its defined lifecy
 
 ### Key Entities
 
-- **Enterprise Client**: A business account authorized to submit bulk orders under its own pre-negotiated contract; owns its Orders and Order History and is the only party permitted to view or cancel them.
+- **Enterprise Client**: A business account, identified via a caller-supplied client identifier (trusted as-is, not verified by login or credentials), that submits bulk orders under its own pre-negotiated contract; owns its Orders and Order History and is the only party permitted to view or cancel them.
 - **Contract Discount Terms**: The client-specific, pre-negotiated discount terms currently in effect for an Enterprise Client, used exclusively to compute Net Total; has a validity/expiration status.
 - **Bulk Order**: A single order submission from one Enterprise Client containing one or more Line Items, an overall Gross Total, Net Total, and a single lifecycle status.
 - **Line Item**: An individual hardware SKU and quantity within a Bulk Order, contributing to the order's Gross Total. The same SKU MAY appear across multiple Line Items within one order; each is kept distinct and is not auto-merged.
@@ -133,7 +134,7 @@ An authorized internal operator advances a bulk order through its defined lifecy
 
 - **SC-001**: An enterprise client submitting a valid bulk order receives a calculated Net Total in under 5 seconds.
 - **SC-002**: 100% of Net Total calculations reflect the client's currently effective contract discount terms at the moment of calculation, with zero instances of manual or default pricing overrides.
-- **SC-003**: An enterprise client can locate the current status of any of their own orders, and no other client's orders, in under 3 clicks/steps from login.
+- **SC-003**: An enterprise client can locate the current status of any of their own orders, and no other client's orders, in under 3 clicks/steps from entering their client identifier.
 - **SC-004**: 100% of cancellation attempts on orders that are not Active (already delivered or already cancelled) are rejected, with zero successful erroneous cancellations.
 - **SC-005**: 100% of order lifecycle transitions are recorded with a reconstructable timestamp and triggering actor, enabling full after-the-fact audit of any order's history.
 - **SC-006**: Zero instances of one enterprise client viewing, cancelling, or otherwise accessing another client's order, pricing, or contract discount data.
@@ -142,9 +143,10 @@ An authorized internal operator advances a bulk order through its defined lifecy
 ## Assumptions
 
 - The defined lifecycle stages are Intake, Processing, Shipped, and Final Delivery, with Cancellation available as a branch at any point before Final Delivery and Backordered available as an on-hold branch from Processing (see Clarifications, Session 2026-08-13).
-- Lifecycle progression (advancing an order from one stage to the next) is performed by authorized internal operations staff rather than being fully automated or client-triggered, consistent with typical enterprise fulfillment workflows.
-- Each Enterprise Client is represented as a single account that may have multiple authorized individual users; all such users share the same order visibility and permissions scoped to that client's own data.
+- Lifecycle progression (advancing an order from one stage to the next) is performed by internal operations staff (identified via a caller-supplied operator identifier) rather than being fully automated or client-triggered, consistent with typical enterprise fulfillment workflows.
+- Each Enterprise Client is represented as a single account identifier that may be used by multiple individual users; all such users share the same order visibility scoped to that client's own data, since individual users are not separately identified in this demo.
 - Pricing and order amounts are handled in a single currency; multi-currency support is out of scope for this feature.
 - "Bulk" refers to any order containing one or more hardware line items submitted by an enterprise client under contract; no separate minimum-quantity threshold is enforced to qualify an order as "bulk."
 - Split or partial deliveries are out of scope; an order reaches Final Delivery as a single terminal event for the order as a whole, consistent with treating the Bulk Order as a first-class unit.
 - Enterprise clients are already onboarded with contract discount terms established through a process outside this feature's scope; this feature consumes those terms but does not define how contracts are negotiated or entered into the system.
+- As a sample/demo application, authentication and authorization (login, credential verification, session management) are out of scope. Each request supplies a client or operator identifier that the system trusts without verification; per-client data scoping (FR-009, SC-006), order ownership checks (FR-010, FR-018), and operator-only restrictions (FR-012) are enforced based on that supplied identifier rather than a verified login session (see Clarifications, Session 2026-08-13).
