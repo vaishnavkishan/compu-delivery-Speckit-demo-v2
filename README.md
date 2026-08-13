@@ -19,7 +19,7 @@ Run the github speckit commands in following order to generate code using Spec-d
 constitution -> specify -> clarify -> plan -> checklist -> tasks -> analyse -> implement
 ```
 
-## Prerequisites
+## Prerequisites (branch name 00-speckit-initialize)
 
 ### 1. Install uv
 
