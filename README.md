@@ -57,3 +57,30 @@ Ran `specify init .` in the project root. It scaffolds Spec-Driven Development (
 
 - `.specify/` — constitution/memory, templates, scripts, and workflow config for the SDD process
 - `.claude/skills/` — Speckit slash-command skills for Claude (specify, plan, tasks, implement, etc.)
+
+## Steps
+
+> The Speckit slash commands below can be run either in the VS Code chat (Claude Code, Copilot, etc.) or via the `specify` CLI directly.
+
+### 1. Generate the project constitution (`/speckit-constitution`, branch name 01-speckit-constitution)
+
+Ran the `/speckit-constitution` skill to derive
+`.specify/memory/constitution.md` from requirements — domain language, boundaries, and standards only.
+
+The raw prompt:
+```
+/speckit-constitution add constitution based on below requirements. Extract high-level domain rules and functional conventions—do not transcribe feature requirements directly.
+
+Requirements:
+We need a system that accepts bulk hardware orders from enterprise clients, calculates their final net totals using pre-negotiated contract discounts, and tracks each order through its lifecycle from intake to final delivery. Clients should be able to view their order history or cancel active requests.
+
+**Extract & Add:**
+
+* **Domain Language:** Glossary, domain-specific terminology, and abbreviations.
+* **Governance & Boundaries:** Domain boundaries, data governance policies, and usage rules.
+* **Standards:** Core standards and functional principles.
+
+**Constraints:**
+
+* Strictly exclude raw requirements, user stories, technical architecture, and implementation details.
+```
