@@ -109,20 +109,22 @@ and initial spec didn't resolve — asked up to 5 targeted questions one at a ti
 accepted answer directly back into `spec.md` (a new `## Clarifications` section, plus updates to the
 affected Edge Cases, Functional Requirements, Key Entities, and Assumptions).
 
-The raw prompt (run with no argument):
+#### The raw prompt run with no argument:
 
 ```
 /speckit-clarify
 ```
 
-It can also be supplied specific information:
+#### Specific requirement clarification:
 
 ```
 /speckit-clarify As this is a sample/demo application, we do not want to implement authorization and authentication currently
 ```
 
-`/speckit-clarify` can also take a Figma design export (HTML/CSS) as an attachment instead of, or alongside, free-text guidance. This matters because a spec written before any UI exists is silent on interaction details a mockup makes concrete — e.g. this project's Figma export showed a second "volume discount" line, a 5-step order-status tracker, and a fixed hardware catalog that weren't in `spec.md` yet. Clarify treats the design as another source of ambiguity to resolve: it diffs what the mockup shows against the existing functional requirements and constitution, asks about each real conflict or gap one at a time, then encodes the accepted answers back into `spec.md` (a new `### User Interface Overview` subsection and UI-specific Functional Requirements) — so the spec, not the mockup, stays the single source of truth for implementation.
+#### Clarification using Figma Designs:
+
+`/speckit-clarify` can also take a Figma design export (HTML/CSS) as an attachment, instead of or alongside free-text guidance. A spec written before any UI exists has nothing to say about interaction details a mockup makes concrete — this project's export showed a second "volume discount" line, a 5-step order-status tracker, and a fixed hardware catalog, none of which were in `spec.md` yet. Clarify diffs the design against the existing requirements and constitution, asks about each real conflict or gap one question at a time, then encodes the accepted answers back into `spec.md` (a new `### User Interface Overview` subsection plus UI-specific Functional Requirements) — so the spec stays the source of truth implementation follows, not the mockup.
 
 ```
-/speckit-clarify analyse the attached Figma design html and add the information about the UI/UX to be same as html when it is implemented
+/speckit-clarify analyse the Figma design html specs/001-bulk-hardware-orders/figma-designs/create-order-page.html and add the information about the UI/UX to be same as html when it is implemented
 ```
