@@ -18,6 +18,11 @@
 - Q: If a client submits a bulk order listing the same hardware SKU twice as separate line items, what should the system do? → A: Allow as separate line items; each submitted line item is kept distinct and Gross Total sums all line items as submitted, with no auto-merging.
 - Q: When a client tries to view or cancel an order ID that either doesn't exist or belongs to a different client, should the response be the same in both cases? → A: Yes — a single generic "not found" response for both, so a client cannot distinguish nonexistence from another client's ownership (see FR-018).
 - Q: Since this demo won't implement authentication or authorization, how should the system know which enterprise client or operator is behind a given request? → A: Requests include a caller-supplied client/operator identifier that the system trusts without verifying credentials; per-client data scoping and operator-only restrictions still apply based on that identifier, but no login or credential verification is performed.
+- Q: The reference UI design shows a second "Bulk Volume Tier" discount line (an extra 5% off at 50+ units) alongside the Contract Discount line — should this generic volume-based discount be part of the implemented pricing model? → A: No — drop the volume tier; the implemented UI and pricing model use a single Contract Discount line only, consistent with FR-003's rule that Net Total derives exclusively from the client's contract terms.
+- Q: The reference UI design has no login screen or identifier input — it shows a static, already-resolved client badge. Since the system trusts a caller-supplied identifier with no login, how should the UI actually capture that identifier? → A: A demo client/operator switcher (dropdown/selector) lets the user pick among a small set of demo identities to view the portal scoped to that identifier, for testing and demonstration purposes.
+- Q: The reference UI's lifecycle stepper shows only 4 steps (Intake → Processing → Shipped → Delivered), but the spec's lifecycle has a 5th stage, Backordered. How should Backordered appear in that stepper? → A: Expand the stepper to a permanent 5-column layout (Intake, Processing, Backordered, Shipped, Delivered) shown for every order, whether or not that order ever goes on hold.
+- Q: The reference UI's catalog table lists a fixed set of hardware items (name, SKU, MSRP); the spec doesn't define where valid SKUs, names, and list prices come from. What is the catalog's scope? → A: A fixed, system-defined, non-editable reference catalog (matching the Figma's items) is the source of valid SKUs and list prices for Gross Total; catalog management (add/edit/remove items) is out of scope for this feature.
+- Q: The reference UI shows a "Freight & Logistics" summary line that always reads "Waived," with no cost calculation. Should this remain purely informational, or does it imply real freight cost logic? → A: Freight/logistics stays informational only — the UI always shows "Waived" with no cost calculation, and freight is never added to Net Total, consistent with the constitution's domain boundary excluding carrier/logistics operations.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -96,6 +101,14 @@ An internal operator, identified via a caller-supplied operator identifier, adva
 - What happens when an enterprise client submits an order with no line items, or an order that would require a negative or zero Net Total?
 - A client attempts to view or act on an order ID that does not exist or does not belong to them: the system returns the same generic "not found" response in both cases, without revealing whether the order exists under another client (see FR-018).
 
+### User Interface Overview
+
+The client- and operator-facing portal is a single page composed of a header, a primary column, and a pricing summary panel, per the reviewed reference design (see Clarifications, Session 2026-08-13):
+
+- **Header**: Portal title, a demo identity switcher for selecting the active client or operator identity, and — for enterprise clients — a badge showing the client name and contract reference.
+- **Primary column**: The Bulk Order Catalog (fixed Hardware Catalog Items with quantity entry), Active Orders & Lifecycle Tracking (one card per Active order, each showing a 5-step lifecycle indicator and a cancel control), and the Order History Log (past orders with a status indicator per entry).
+- **Pricing summary panel**: Gross Subtotal, Contract Discount, Freight & Logistics (informational "Waived" only), and Final Net Total, updating live as catalog quantities change, with the order submission control.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -118,6 +131,12 @@ An internal operator, identified via a caller-supplied operator identifier, adva
 - **FR-016**: System MUST resolve concurrent conflicting requests on the same order (e.g., a cancellation request and an operator's Final Delivery advancement) using first-committed-wins semantics: whichever request commits to persistent storage first is applied, and the system MUST reject the other with a clear message indicating the order's state has changed.
 - **FR-017**: System MUST lock an order's Net Total at the point it is calculated during intake and MUST NOT recalculate it due to subsequent changes to the client's contract discount terms; renegotiated terms apply only to orders submitted after the change takes effect.
 - **FR-018**: System MUST return an identical generic "not found" response, for both view and cancellation requests, whether the requested order ID does not exist or belongs to a different client, so that a client cannot distinguish nonexistence from another client's ownership.
+- **FR-019**: System MUST provide a demo identity switcher that lets the user select the active client or operator identifier used for subsequent requests, in lieu of a login flow.
+- **FR-020**: System MUST display the fixed Hardware Catalog Items (SKU, name, list price) and MUST let the client set a quantity per item to build Line Items for a new Bulk Order, recomputing each Line Item's subtotal and the pricing summary immediately as quantities change.
+- **FR-021**: System MUST display the pricing summary, in order, as Gross Subtotal, Contract Discount, Freight & Logistics (always displayed as "Waived," informational only, never affecting Net Total), and Final Net Total.
+- **FR-022**: System MUST display, for each of the client's Active Orders, a 5-step lifecycle indicator (Intake, Processing, Backordered, Shipped, Final Delivery) reflecting completed, current, and upcoming steps, alongside a cancel control that requires explicit confirmation before submitting the cancellation.
+- **FR-023**: System MUST display each Order History entry with a visually distinct status indicator matching the order's lifecycle status (Intake, Processing, Backordered, Shipped, Final Delivery, or Cancelled).
+- **FR-024**: System MUST block submission of a new Bulk Order at the UI layer when total quantity across all catalog line items is zero, and MUST present a clear message instead of submitting an empty order (reinforces FR-015).
 
 ### Key Entities
 
@@ -125,6 +144,7 @@ An internal operator, identified via a caller-supplied operator identifier, adva
 - **Contract Discount Terms**: The client-specific, pre-negotiated discount terms currently in effect for an Enterprise Client, used exclusively to compute Net Total; has a validity/expiration status.
 - **Bulk Order**: A single order submission from one Enterprise Client containing one or more Line Items, an overall Gross Total, Net Total, and a single lifecycle status.
 - **Line Item**: An individual hardware SKU and quantity within a Bulk Order, contributing to the order's Gross Total. The same SKU MAY appear across multiple Line Items within one order; each is kept distinct and is not auto-merged.
+- **Hardware Catalog Item**: A fixed, system-defined reference entry (SKU, name, list/MSRP price) that a Line Item's SKU must match; the authoritative source of valid SKUs and list prices used in Gross Total. Catalog contents are non-editable within this feature's scope.
 - **Lifecycle Transition Record**: A timestamped record of an order moving from one lifecycle status to another, including the triggering actor or event; preserved as history rather than overwritten.
 - **Cancellation Record**: A timestamped record capturing that a client cancelled a specific Active Order, including when the cancellation occurred.
 
@@ -150,3 +170,4 @@ An internal operator, identified via a caller-supplied operator identifier, adva
 - Split or partial deliveries are out of scope; an order reaches Final Delivery as a single terminal event for the order as a whole, consistent with treating the Bulk Order as a first-class unit.
 - Enterprise clients are already onboarded with contract discount terms established through a process outside this feature's scope; this feature consumes those terms but does not define how contracts are negotiated or entered into the system.
 - As a sample/demo application, authentication and authorization (login, credential verification, session management) are out of scope. Each request supplies a client or operator identifier that the system trusts without verification; per-client data scoping (FR-009, SC-006), order ownership checks (FR-010, FR-018), and operator-only restrictions (FR-012) are enforced based on that supplied identifier rather than a verified login session (see Clarifications, Session 2026-08-13).
+- The client- and operator-facing portal's UI/UX (single-page layout, catalog table, pricing summary panel, lifecycle stepper, order history status indicators) follows the reviewed reference design, adapted per this session's clarifications: a single Contract Discount line only (no generic volume-tier discount), a demo identity switcher in place of login, a permanent 5-step lifecycle stepper including Backordered, a fixed non-editable reference Hardware Catalog, and an informational-only "Waived" Freight & Logistics line (see Clarifications, Session 2026-08-13).
