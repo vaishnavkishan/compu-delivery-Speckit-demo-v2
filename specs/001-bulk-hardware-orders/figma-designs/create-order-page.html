@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enterprise Hardware Procurement Portal</title>
+  <style>
+    :root {
+      --primary: #1e293b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --success: #16a34a;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 24px; line-height: 1.5; }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--surface);
+      padding: 20px 24px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+    .client-badge {
+      background: #eff6ff;
+      color: var(--accent);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border: 1px solid #bfdbfe;
+    }
+
+    .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Table Styles */
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    th { font-weight: 600; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; }
+
+    input[type="number"] {
+      width: 80px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.95rem;
+    }
+
+    /* Summary Panel */
+    .summary-line {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-size: 0.95rem;
+    }
+    .summary-line.total {
+      font-size: 1.25rem;
+      font-weight: 700;
+      border-top: 2px dashed var(--border);
+      padding-top: 12px;
+      color: var(--text);
+    }
+    .discount-text { color: var(--success); font-weight: 600; }
+
+    .btn {
+      width: 100%;
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: var(--radius);
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn-danger {
+      background: transparent;
+      color: var(--danger);
+      border: 1px solid var(--danger);
+      padding: 4px 10px;
+      width: auto;
+      font-size: 0.85rem;
+    }
+    .btn-danger:hover { background: #fef2f2; }
+
+    /* Lifecycle Stepper */
+    .tracker {
+      display: flex;
+      justify-content: space-between;
+      margin: 20px 0 10px 0;
+      position: relative;
+    }
+    .tracker::before {
+      content: '';
+      position: absolute;
+      top: 15px;
+      left: 10%;
+      right: 10%;
+      height: 3px;
+      background: var(--border);
+      z-index: 1;
+    }
+    .step {
+      position: relative;
+      z-index: 2;
+      background: var(--surface);
+      padding: 0 8px;
+      text-align: center;
+      font-size: 0.8rem;
+    }
+    .step-circle {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--border);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 6px auto;
+      font-weight: 600;
+    }
+    .step.active .step-circle { background: var(--accent); color: white; }
+    .step.completed .step-circle { background: var(--success); color: white; }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-intake { background: #e0f2fe; color: #0369a1; }
+    .badge-processing { background: #fef3c7; color: #b45309; }
+    .badge-shipped { background: #e0e7ff; color: #4338ca; }
+    .badge-delivered { background: #dcfce7; color: #15803d; }
+    .badge-cancelled { background: #fee2e2; color: #b91c1c; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div>
+      <h1>Hardware Procurement Portal</h1>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">Enterprise Bulk Ordering & Fulfillment</p>
+    </div>
+    <div class="client-badge">
+      Client: Acme Corp (Contract #EC-8942) &bull; Tier 1 Discount Applied
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- Left Column: Catalog & Ordering Form -->
+    <div>
+      <section class="card">
+        <h2 class="card-title">Bulk Order Catalog</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Item Specification</th>
+              <th>Unit MSRP</th>
+              <th>Quantity</th>
+              <th>Subtotal</th>
+            </tr>
+          </thead>
+          <tbody id="catalog-body">
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Active Orders Tracking Section -->
+      <section class="card">
+        <h2 class="card-title">Active Orders & Lifecycle Tracking</h2>
+        <div id="active-orders-container">
+          <!-- Active orders rendered here -->
+        </div>
+      </section>
+
+      <!-- Order History -->
+      <section class="card">
+        <h2 class="card-title">Order History Log</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Date</th>
+              <th>Items</th>
+              <th>Net Total</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="history-body">
+            <!-- History populated via JS -->
+          </tbody>
+        </table>
+      </section>
+    </div>
+
+    <!-- Right Column: Checkout & Discount Summary -->
+    <div>
+      <section class="card" style="position: sticky; top: 24px;">
+        <h2 class="card-title">Contract Net Pricing</h2>
+        
+        <div class="summary-line">
+          <span>Gross Subtotal</span>
+          <span id="summary-gross">$0.00</span>
+        </div>
+        
+        <div class="summary-line">
+          <span>Contract Discount (15%)</span>
+          <span class="discount-text" id="summary-contract">-$0.00</span>
+        </div>
+
+        <div class="summary-line">
+          <span>Bulk Volume Tier (<span id="bulk-rate-label">0%</span>)</span>
+          <span class="discount-text" id="summary-volume">-$0.00</span>
+        </div>
+
+        <div class="summary-line">
+          <span>Freight & Logistics</span>
+          <span id="summary-freight">Waived</span>
+        </div>
+
+        <div class="summary-line total">
+          <span>Final Net Total</span>
+          <span id="summary-net">$0.00</span>
+        </div>
+
+        <button class="btn" onclick="placeOrder()" style="margin-top: 16px;">Submit Enterprise Order</button>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // Hardware Catalog Data
+    const catalog = [
+      { id: 'HW-01', name: 'Rack Server Blade X500 (64-Core, 256GB RAM)', price: 4200 },
+      { id: 'HW-02', name: 'Enterprise Workstation Pro (32-Core, RTX 4080)', price: 2800 },
+      { id: 'HW-03', name: 'Managed 48-Port Switch (10GbE SFP+)', price: 1150 },
+      { id: 'HW-04', name: '27" UltraWide Color-Accurate Monitor', price: 650 }
+    ];
+
+    const CONTRACT_DISCOUNT_RATE = 0.15; // 15% pre-negotiated discount
+
+    // Mock State for Active & Past Orders
+    let activeOrders = [
+      {
+        id: 'ORD-9821',
+        date: '2026-08-10',
+        itemsCount: 45,
+        total: '$142,800.00',
+        status: 'Processing', // Lifecycle: Intake -> Processing -> Shipped -> Delivered
+        step: 2
+      }
+    ];
+
+    let orderHistory = [
+      { id: 'ORD-9102', date: '2026-06-15', itemsCount: 120, total: '$380,500.00', status: 'Delivered' },
+      { id: 'ORD-8740', date: '2026-03-22', itemsCount: 10, total: '$32,100.00', status: 'Cancelled' }
+    ];
+
+    // Render Catalog
+    function renderCatalog() {
+      const tbody = document.getElementById('catalog-body');
+      tbody.innerHTML = catalog.map(item => `
+        <tr>
+          <td>
+            <strong>${item.name}</strong><br>
+            <small style="color:var(--text-muted)">SKU: ${item.id}</small>
+          </td>
+          <td>$${item.price.toLocaleString()}</td>
+          <td>
+            <input type="number" min="0" value="0" id="qty-${item.id}" onchange="calculateTotals()">
+          </td>
+          <td id="subtotal-${item.id}">$0.00</td>
+        </tr>
+      `).join('');
+    }
+
+    // Calculate Net Totals & Discounts
+    function calculateTotals() {
+      let grossTotal = 0;
+      let totalUnits = 0;
+
+      catalog.forEach(item => {
+        const qty = parseInt(document.getElementById(`qty-${item.id}`).value) || 0;
+        const subtotal = qty * item.price;
+        grossTotal += subtotal;
+        totalUnits += qty;
+        document.getElementById(`subtotal-${item.id}`).innerText = `$${subtotal.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+      });
+
+      // Volume Discount Rule: Additional 5% off if buying over 50 units
+      const volumeDiscountRate = totalUnits >= 50 ? 0.05 : 0;
+      
+      const contractDiscount = grossTotal * CONTRACT_DISCOUNT_RATE;
+      const volumeDiscount = grossTotal * volumeDiscountRate;
+      const netTotal = grossTotal - contractDiscount - volumeDiscount;
+
+      // Update Summary Panel
+      document.getElementById('summary-gross').innerText = `$${grossTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+      document.getElementById('summary-contract').innerText = `-$${contractDiscount.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+      document.getElementById('summary-volume').innerText = `-$${volumeDiscount.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+      document.getElementById('bulk-rate-label').innerText = `${volumeDiscountRate * 100}%`;
+      document.getElementById('summary-net').innerText = `$${netTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+
+      return { grossTotal, netTotal, totalUnits };
+    }
+
+    // Submit Order
+    function placeOrder() {
+      const { netTotal, totalUnits } = calculateTotals();
+
+      if (totalUnits === 0) {
+        alert("Please add at least one item quantity to place an order.");
+        return;
+      }
+
+      const newOrder = {
+        id: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+        date: new Date().toISOString().split('T')[0],
+        itemsCount: totalUnits,
+        total: `$${netTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}`,
+        status: 'Intake',
+        step: 1
+      };
+
+      activeOrders.unshift(newOrder);
+      
+      // Reset inputs
+      catalog.forEach(item => {
+        document.getElementById(`qty-${item.id}`).value = 0;
+      });
+      calculateTotals();
+
+      renderActiveOrders();
+      alert(`Order ${newOrder.id} successfully submitted! Tracking activated.`);
+    }
+
+    // Cancel Active Order
+    function cancelOrder(orderId) {
+      if (!confirm(`Are you sure you want to cancel order ${orderId}?`)) return;
+
+      const index = activeOrders.findIndex(o => o.id === orderId);
+      if (index !== -1) {
+        const cancelled = activeOrders.splice(index, 1)[0];
+        cancelled.status = 'Cancelled';
+        orderHistory.unshift(cancelled);
+        
+        renderActiveOrders();
+        renderHistory();
+      }
+    }
+
+    // Render Active Order Trackers
+    function renderActiveOrders() {
+      const container = document.getElementById('active-orders-container');
+      if (activeOrders.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted); font-size: 0.9rem;">No active orders currently in process.</p>';
+        return;
+      }
+
+      container.innerHTML = activeOrders.map(order => `
+        <div style="border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); margin-bottom: 16px;">
+          <div style="display:flex; justify-size:space-between; justify-content: space-between; align-items:center; margin-bottom: 12px;">
+            <div>
+              <strong>${order.id}</strong> &bull; <small style="color:var(--text-muted)">${order.date}</small>
+              <div><small>${order.itemsCount} Items | Total: <strong>${order.total}</strong></small></div>
+            </div>
+            <div>
+              <button class="btn-danger" onclick="cancelOrder('${order.id}')">Cancel Request</button>
+            </div>
+          </div>
+
+          <!-- Stepper -->
+          <div class="tracker">
+            <div class="step ${order.step >= 1 ? (order.step > 1 ? 'completed' : 'active') : ''}">
+              <div class="step-circle">1</div>
+              Intake
+            </div>
+            <div class="step ${order.step >= 2 ? (order.step > 2 ? 'completed' : 'active') : ''}">
+              <div class="step-circle">2</div>
+              Processing
+            </div>
+            <div class="step ${order.step >= 3 ? (order.step > 3 ? 'completed' : 'active') : ''}">
+              <div class="step-circle">3</div>
+              Shipped
+            </div>
+            <div class="step ${order.step === 4 ? 'completed' : ''}">
+              <div class="step-circle">4</div>
+              Delivered
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Render Order History
+    function renderHistory() {
+      const tbody = document.getElementById('history-body');
+      tbody.innerHTML = orderHistory.map(order => `
+        <tr>
+          <td><strong>${order.id}</strong></td>
+          <td>${order.date}</td>
+          <td>${order.itemsCount} Units</td>
+          <td>${order.total}</td>
+          <td><span class="badge badge-${order.status.toLowerCase()}">${order.status}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    // Initial Load
+    renderCatalog();
+    renderActiveOrders();
+    renderHistory();
+  </script>
+</body>
+</html>
