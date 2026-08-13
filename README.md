@@ -100,3 +100,16 @@ The raw prompt:
 Requirements:
 We need a system that accepts bulk hardware orders from enterprise clients, calculates their final net totals using pre-negotiated contract discounts, and tracks each order through its lifecycle from intake to final delivery. Clients should be able to view their order history or cancel active requests.
 ```
+
+### 3. Clarify the feature specification (`/speckit-clarify`, branch name 03-speckit-clarify)
+
+Ran the `/speckit-clarify` skill against `spec.md` to surface underspecified areas the constitution
+and initial spec didn't resolve — asked up to 5 targeted questions one at a time, then encoded each
+accepted answer directly back into `spec.md` (a new `## Clarifications` section, plus updates to the
+affected Edge Cases, Functional Requirements, Key Entities, and Assumptions).
+
+The raw prompt (run with no argument):
+
+```
+/speckit-clarify
+```
