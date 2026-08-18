@@ -128,3 +128,11 @@ affected Edge Cases, Functional Requirements, Key Entities, and Assumptions).
 ```
 /speckit-clarify analyse the Figma design html specs/001-bulk-hardware-orders/figma-designs/create-order-page.html and add the information about the UI/UX to be same as html when it is implemented
 ```
+
+#### Re-clarifying after the designs change:
+
+Designs aren't static — new mockups get dropped into `figma-designs/` after the spec was already clarified once. Running `/speckit-clarify` again re-diffs the spec against whatever is currently in that folder, not just against the first export: it caught that new dashboard/detail pages had been added for personas the spec never defined (Invoice Staff, Warehouse Operator), that they quietly reverted an already-decided 5-step lifecycle stepper back to 4 steps, that the single-page layout had been split into a dashboard + detail page, and that order line items were now editable post-submission. Each was surfaced as its own question and the accepted answers were folded back into `spec.md`.
+
+```
+/speckit-clarify verify that the spec is matching the designs from html figma-designs folder
+```
