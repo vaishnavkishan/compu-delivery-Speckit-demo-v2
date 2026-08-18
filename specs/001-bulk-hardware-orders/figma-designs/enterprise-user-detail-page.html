@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enterprise Order Details & Procurement</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#1e293b',
+            accent: '#2563eb',
+            'accent-hover': '#1d4ed8',
+            surface: '#ffffff',
+            canvas: '#f8fafc',
+            border: '#e2e8f0',
+            muted: '#64748b'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #f8fafc;
+      color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .toast-slide {
+      animation: slideIn 0.3s ease-out forwards;
+    }
+    @keyframes slideIn {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body class="p-4 md:p-6 max-w-7xl mx-auto min-h-screen flex flex-col justify-between">
+
+  <div>
+    <!-- Navigation & Status Bar -->
+    <div class="bg-white border border-slate-200 rounded-xl p-4 mb-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div class="flex items-center gap-3">
+        <a href="enterprise-user-dashboard.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-md text-xs font-semibold transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+          </svg>
+          Back to Dashboard
+        </a>
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 id="order-page-title" class="text-lg font-bold text-slate-900">Create New Order</h2>
+            <span id="order-page-status-badge" class="px-2.5 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800">Draft</span>
+          </div>
+          <p id="order-page-subtitle" class="text-xs text-slate-500">Select catalog items and specify quantities for enterprise delivery</p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- Company Selector -->
+        <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700">
+          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5m0 0h4m-4 0V11m0 0h4m-4 0H7m4 0v10"/>
+          </svg>
+          <span class="text-slate-400">Company:</span>
+          <select id="company-select" onchange="handleCompanyChange(this.value)" class="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer">
+            <option value="acme" selected>Acme Corp</option>
+          </select>
+        </div>
+
+        <!-- Right-Aligned Contract & Discount Badge -->
+        <div class="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg px-3 py-1.5 text-xs font-semibold">
+          <span class="text-blue-700 font-bold">Contract #EC-8942</span>
+          <span class="text-blue-300">&bull;</span>
+          <span class="text-blue-600 font-medium">Tier 1 (15% Discount)</span>
+        </div>
+
+        <div id="editable-status-notice" class="bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-1.5 rounded-md font-medium flex items-center gap-2">
+          <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          <span>Order is Editable (Intake / Processing Phase)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Single Order Lifecycle Tracker -->
+    <section class="bg-white border border-slate-200 rounded-xl p-6 mb-6 shadow-sm">
+      <h3 class="text-sm font-bold text-slate-900 mb-3">Order Lifecycle Progression</h3>
+      <div id="single-order-tracker" class="relative flex justify-between items-center py-2">
+        <!-- Rendered via JS -->
+      </div>
+    </section>
+
+    <!-- Main Layout Grid -->
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Left 2/3 Column: Product Selection Table -->
+      <div class="lg:col-span-2 space-y-6">
+        <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+          <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+            <div>
+              <h3 class="text-lg font-semibold text-slate-900">Order Line Items</h3>
+              <p class="text-xs text-slate-500">Search master catalog or enter quantities</p>
+            </div>
+            <button id="add-item-top-btn" onclick="addLineItem()" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-xs font-semibold transition-colors shadow-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              Add Line Item
+            </button>
+          </div>
+
+          <div class="overflow-visible">
+            <table class="w-full text-left text-sm">
+              <thead>
+                <tr class="text-xs uppercase text-slate-500 border-b border-slate-200 bg-slate-50/50">
+                  <th class="py-3 px-3 w-1/2">Item Specification / Master Catalog Search</th>
+                  <th class="py-3 px-3">Unit MSRP</th>
+                  <th class="py-3 px-3 text-center">Quantity</th>
+                  <th class="py-3 px-3 text-right">Subtotal</th>
+                  <th class="py-3 px-3 text-center" id="th-action">Action</th>
+                </tr>
+              </thead>
+              <tbody id="catalog-tbody" class="divide-y divide-slate-100">
+                <!-- Dynamically populated rows -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Add Line Item Button Below Table -->
+          <div id="add-item-bottom-container" class="mt-4 pt-3 border-t border-slate-100">
+            <button onclick="addLineItem()" class="w-full py-2.5 border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50/50 text-slate-600 hover:text-blue-700 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              + Add Product / Line Item
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right 1/3 Column: Dynamic Pricing Summary Panel -->
+      <div class="lg:col-span-1">
+        <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm sticky top-6">
+          <h3 class="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">Contract Net Pricing</h3>
+          
+          <div class="space-y-3 text-sm">
+            <div class="flex justify-between text-slate-600">
+              <span>Total Selected Items</span>
+              <span id="summary-units-count" class="font-semibold text-slate-800">0 Units</span>
+            </div>
+
+            <div class="flex justify-between text-slate-600">
+              <span>Gross Subtotal</span>
+              <span id="summary-gross" class="font-medium text-slate-800">$0.00</span>
+            </div>
+            
+            <div class="flex justify-between text-slate-600">
+              <span class="flex items-center gap-1">
+                Contract Discount 
+                <span class="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">15%</span>
+              </span>
+              <span id="summary-contract" class="text-emerald-600 font-semibold">-$0.00</span>
+            </div>
+
+            <div class="flex justify-between text-slate-600">
+              <span>Logistics & Freight</span>
+              <span class="text-emerald-600 font-medium">Waived (Enterprise Tier)</span>
+            </div>
+
+            <div class="pt-4 border-t-2 border-dashed border-slate-200 flex justify-between items-baseline">
+              <span class="text-base font-bold text-slate-900">Final Net Total</span>
+              <span id="summary-net" class="text-xl font-extrabold text-blue-600">$0.00</span>
+            </div>
+          </div>
+
+          <div class="mt-6 space-y-2">
+            <button id="submit-order-btn" onclick="saveOrSubmitOrder()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg shadow-sm transition-all text-sm flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+              <span id="submit-btn-text">Submit Enterprise Order</span>
+            </button>
+            <p class="text-[11px] text-center text-slate-400">Orders are bound by Master Service Agreement #EC-8942</p>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script>
+    const CONTRACT_DISCOUNT_RATE = 0.15; // 15% flat rate
+
+    const masterCatalog = [
+      { id: 'HW-101', name: 'Rack Server Blade X500 (64-Core, 256GB RAM)', price: 4200.00 },
+      { id: 'HW-102', name: 'Enterprise Workstation Pro (32-Core, RTX 4080)', price: 2800.00 },
+      { id: 'HW-103', name: 'Managed 48-Port Switch (10GbE SFP+)', price: 1150.00 },
+      { id: 'HW-104', name: '27" UltraWide Color-Accurate Monitor', price: 650.00 },
+      { id: 'HW-105', name: 'High-Performance GPU Blade 80GB', price: 3500.00 },
+      { id: 'HW-106', name: 'Enterprise NVMe SAN Storage Array 50TB', price: 8900.00 }
+    ];
+
+    const defaultOrders = [
+      {
+        id: 'ORD-9821',
+        date: '2026-08-16',
+        itemsCount: 45,
+        total: '$142,800.00',
+        status: 'Processing',
+        step: 2,
+        lineItems: [
+          { rowId: 1, selectedProductId: 'HW-101', searchQuery: 'Rack Server Blade X500 (64-Core, 256GB RAM)', qty: 30 },
+          { rowId: 2, selectedProductId: 'HW-103', searchQuery: 'Managed 48-Port Switch (10GbE SFP+)', qty: 15 }
+        ]
+      },
+      {
+        id: 'ORD-9650',
+        date: '2026-08-14',
+        itemsCount: 8,
+        total: '$13,950.00',
+        status: 'Shipped',
+        step: 3,
+        lineItems: [
+          { rowId: 1, selectedProductId: 'HW-102', searchQuery: 'Enterprise Workstation Pro (32-Core, RTX 4080)', qty: 4 },
+          { rowId: 2, selectedProductId: 'HW-104', searchQuery: '27" UltraWide Color-Accurate Monitor', qty: 4 }
+        ]
+      },
+      {
+        id: 'ORD-9530',
+        date: '2026-08-12',
+        itemsCount: 10,
+        total: '$23,800.00',
+        status: 'Intake',
+        step: 1,
+        lineItems: [
+          { rowId: 1, selectedProductId: 'HW-102', searchQuery: 'Enterprise Workstation Pro (32-Core, RTX 4080)', qty: 10 }
+        ]
+      },
+      {
+        id: 'ORD-9102',
+        date: '2026-06-15',
+        itemsCount: 120,
+        total: '$380,500.00',
+        status: 'Delivered',
+        step: 4,
+        lineItems: [
+          { rowId: 1, selectedProductId: 'HW-106', searchQuery: 'Enterprise NVMe SAN Storage Array 50TB', qty: 50 }
+        ]
+      },
+      {
+        id: 'ORD-8740',
+        date: '2026-03-22',
+        itemsCount: 10,
+        total: '$32,100.00',
+        status: 'Cancelled',
+        step: 1,
+        lineItems: []
+      }
+    ];
+
+    function getOrders() {
+      const stored = localStorage.getItem('procurement_orders');
+      if (stored) {
+        try { return JSON.parse(stored); } catch(e) {}
+      }
+      return defaultOrders;
+    }
+
+    function saveOrders(orders) {
+      localStorage.setItem('procurement_orders', JSON.stringify(orders));
+    }
+
+    let currentEditingOrderId = null;
+    let activeLineItems = [];
+    let activeDropdownRowIndex = null;
+
+    // Parse URL Params (e.g., order.html?id=ORD-9821 or order.html?mode=new)
+    function initPage() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const targetId = urlParams.get('id');
+      const allOrders = getOrders();
+
+      if (targetId) {
+        const order = allOrders.find(o => o.id === targetId);
+        if (order) {
+          currentEditingOrderId = order.id;
+          activeLineItems = JSON.parse(JSON.stringify(order.lineItems || []));
+          const isEditable = (order.status === 'Intake' || order.status === 'Processing');
+          setupOrderPageUI({
+            title: `Order Details: ${order.id}`,
+            status: order.status,
+            step: order.step,
+            isEditable: isEditable
+          });
+          renderCatalog();
+          return;
+        }
+      }
+
+      // Default to New Order Draft
+      currentEditingOrderId = null;
+      activeLineItems = [{ rowId: Date.now(), selectedProductId: null, searchQuery: '', qty: 1 }];
+      setupOrderPageUI({
+        title: 'Create New Enterprise Order',
+        status: 'Draft',
+        step: 1,
+        isEditable: true
+      });
+      renderCatalog();
+    }
+
+    function setupOrderPageUI({ title, status, step, isEditable }) {
+      document.getElementById('order-page-title').innerText = title;
+      
+      const badgeEl = document.getElementById('order-page-status-badge');
+      badgeEl.innerText = status;
+      badgeEl.className = 'px-2.5 py-0.5 rounded text-xs font-bold ';
+      if (status === 'Draft' || status === 'Intake') badgeEl.className += 'bg-blue-100 text-blue-800';
+      else if (status === 'Processing') badgeEl.className += 'bg-amber-100 text-amber-800';
+      else if (status === 'Shipped') badgeEl.className += 'bg-indigo-100 text-indigo-800';
+      else if (status === 'Delivered') badgeEl.className += 'bg-emerald-100 text-emerald-800';
+      else if (status === 'Cancelled') badgeEl.className += 'bg-red-100 text-red-800';
+
+      const noticeEl = document.getElementById('editable-status-notice');
+      if (isEditable) {
+        noticeEl.className = 'bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-1.5 rounded-md font-medium flex items-center gap-2';
+        noticeEl.innerHTML = `
+          <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          <span>Order is Editable (${status} Phase)</span>
+        `;
+      } else {
+        noticeEl.className = 'bg-slate-100 border border-slate-200 text-slate-600 text-xs px-3 py-1.5 rounded-md font-medium flex items-center gap-2';
+        noticeEl.innerHTML = `
+          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          <span>Read Only (${status} State)</span>
+        `;
+      }
+
+      document.getElementById('add-item-top-btn').style.display = isEditable ? 'inline-flex' : 'none';
+      document.getElementById('add-item-bottom-container').style.display = isEditable ? 'block' : 'none';
+      document.getElementById('th-action').style.display = isEditable ? 'table-cell' : 'none';
+
+      const submitBtn = document.getElementById('submit-order-btn');
+      const submitText = document.getElementById('submit-btn-text');
+
+      if (!isEditable) {
+        submitBtn.disabled = true;
+        submitBtn.className = 'w-full bg-slate-300 text-slate-500 font-semibold py-3 px-4 rounded-lg shadow-sm text-sm cursor-not-allowed flex items-center justify-center gap-2';
+        submitText.innerText = 'Order Locked (Read Only)';
+      } else {
+        submitBtn.disabled = false;
+        submitBtn.className = 'w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg shadow-sm transition-all text-sm flex items-center justify-center gap-2';
+        submitText.innerText = currentEditingOrderId ? 'Update Order Line Items' : 'Submit Enterprise Order';
+      }
+
+      renderTrackerGraphic(step, status);
+    }
+
+    function renderTrackerGraphic(step, status) {
+      const trackerContainer = document.getElementById('single-order-tracker');
+      if (status === 'Cancelled') {
+        trackerContainer.innerHTML = `<div class="w-full bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-md font-semibold text-center">This order was cancelled and is no longer moving through fulfillment pipelines.</div>`;
+        return;
+      }
+
+      trackerContainer.innerHTML = `
+        <div class="absolute top-1/2 left-8 right-8 h-0.5 bg-slate-200 -translate-y-1/2 z-0"></div>
+        <div class="relative z-10 flex flex-col items-center gap-1 bg-white px-2">
+          <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step >= 1 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'}">1</div>
+          <span class="text-xs font-medium text-slate-600">Intake</span>
+        </div>
+        <div class="relative z-10 flex flex-col items-center gap-1 bg-white px-2">
+          <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step >= 2 ? (step > 2 ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white animate-pulse') : 'bg-slate-200 text-slate-500'}">2</div>
+          <span class="text-xs font-medium text-slate-600">Processing</span>
+        </div>
+        <div class="relative z-10 flex flex-col items-center gap-1 bg-white px-2">
+          <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step >= 3 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'}">3</div>
+          <span class="text-xs font-medium text-slate-600">Shipped</span>
+        </div>
+        <div class="relative z-10 flex flex-col items-center gap-1 bg-white px-2">
+          <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step === 4 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500'}">4</div>
+          <span class="text-xs font-medium text-slate-600">Delivered</span>
+        </div>
+      `;
+    }
+
+    function addLineItem() {
+      activeLineItems.push({ rowId: Date.now() + Math.random(), selectedProductId: null, searchQuery: '', qty: 1 });
+      renderCatalog();
+    }
+
+    function removeLineItem(index) {
+      activeLineItems.splice(index, 1);
+      renderCatalog();
+    }
+
+    function selectProduct(rowIndex, productId) {
+      const prod = masterCatalog.find(p => p.id === productId);
+      if (prod) {
+        activeLineItems[rowIndex].selectedProductId = prod.id;
+        activeLineItems[rowIndex].searchQuery = prod.name;
+        activeDropdownRowIndex = null;
+        renderCatalog();
+      }
+    }
+
+    function clearProductSelection(rowIndex) {
+      activeLineItems[rowIndex].selectedProductId = null;
+      activeLineItems[rowIndex].searchQuery = '';
+      activeDropdownRowIndex = rowIndex;
+      renderCatalog();
+    }
+
+    function updateQty(rowIndex, value) {
+      const val = parseInt(value) || 1;
+      activeLineItems[rowIndex].qty = val < 1 ? 1 : val;
+      calculateTotals();
+      const prod = masterCatalog.find(p => p.id === activeLineItems[rowIndex].selectedProductId);
+      if (prod) {
+        const subtotalEl = document.getElementById(`subtotal-${rowIndex}`);
+        if (subtotalEl) {
+          subtotalEl.innerText = `$${(activeLineItems[rowIndex].qty * prod.price).toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        }
+      }
+    }
+
+    function handleSearchInput(rowIndex, query) {
+      activeLineItems[rowIndex].searchQuery = query;
+      activeDropdownRowIndex = rowIndex;
+      renderDropdownMenu(rowIndex, query);
+    }
+
+    function renderDropdownMenu(rowIndex, query) {
+      const dropdownEl = document.getElementById(`dropdown-list-${rowIndex}`);
+      if (!dropdownEl) return;
+      const filtered = masterCatalog.filter(item => 
+        item.name.toLowerCase().includes(query.toLowerCase()) || 
+        item.id.toLowerCase().includes(query.toLowerCase())
+      );
+
+      if (filtered.length === 0) {
+        dropdownEl.innerHTML = `<div class="p-3 text-xs text-slate-400 text-center">No matching products found</div>`;
+      } else {
+        dropdownEl.innerHTML = filtered.map(item => `
+          <div onclick="selectProduct(${rowIndex}, '${item.id}')" class="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer flex justify-between items-center transition-colors">
+            <div>
+              <span class="font-semibold text-slate-800">${item.name}</span>
+              <span class="ml-2 text-[10px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">${item.id}</span>
+            </div>
+            <span class="font-semibold text-slate-900">$${item.price.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+          </div>
+        `).join('');
+      }
+      dropdownEl.classList.remove('hidden');
+    }
+
+    function renderCatalog() {
+      const tbody = document.getElementById('catalog-tbody');
+      const allOrders = getOrders();
+      const isEditable = !currentEditingOrderId || (() => {
+        const ord = allOrders.find(o => o.id === currentEditingOrderId);
+        return ord && (ord.status === 'Intake' || ord.status === 'Processing');
+      })();
+      
+      if (activeLineItems.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="py-8 text-center text-slate-400">
+              <div class="flex flex-col items-center justify-center gap-2">
+                <span class="text-sm font-medium text-slate-500">No line items in this order draft yet.</span>
+                ${isEditable ? `<button onclick="addLineItem()" class="text-xs text-blue-600 font-semibold hover:underline mt-1">+ Click here to add a line item</button>` : ''}
+              </div>
+            </td>
+          </tr>
+        `;
+        calculateTotals();
+        return;
+      }
+
+      tbody.innerHTML = activeLineItems.map((item, index) => {
+        const selectedProd = masterCatalog.find(p => p.id === item.selectedProductId);
+        const subtotal = selectedProd ? selectedProd.price * item.qty : 0;
+
+        return `
+          <tr class="hover:bg-slate-50/50 transition-colors">
+            <td class="py-3 px-3 relative">
+              ${selectedProd ? `
+                <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5">
+                  <div>
+                    <div class="font-semibold text-slate-800 text-xs">${selectedProd.name}</div>
+                    <div class="text-[10px] text-slate-400 font-mono">SKU: ${selectedProd.id}</div>
+                  </div>
+                  ${isEditable ? `<button onclick="clearProductSelection(${index})" class="text-xs text-blue-600 hover:text-blue-800 font-semibold underline ml-2">Change</button>` : ''}
+                </div>
+              ` : `
+                <div class="relative">
+                  <input type="text" 
+                    placeholder="Search master catalog by SKU or product name..." 
+                    value="${item.searchQuery}"
+                    ${!isEditable ? 'disabled' : ''}
+                    onfocus="activeDropdownRowIndex = ${index}; renderDropdownMenu(${index}, this.value)"
+                    oninput="handleSearchInput(${index}, this.value)"
+                    class="w-full px-3 py-1.5 border border-slate-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                  
+                  <div id="dropdown-list-${index}" class="${activeDropdownRowIndex === index ? '' : 'hidden'} absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-30 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                  </div>
+                </div>
+              `}
+            </td>
+            <td class="py-3 px-3 text-slate-700 font-medium text-xs">
+              ${selectedProd ? `$${selectedProd.price.toLocaleString(undefined, {minimumFractionDigits: 2})}` : '<span class="text-slate-400">—</span>'}
+            </td>
+            <td class="py-3 px-3 text-center">
+              <input type="number" min="1" value="${item.qty}" ${(!selectedProd || !isEditable) ? 'disabled' : ''} onchange="updateQty(${index}, this.value)" 
+                class="w-20 px-2 py-1 text-center border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs font-semibold ${(!selectedProd || !isEditable) ? 'bg-slate-100 cursor-not-allowed text-slate-400' : ''}">
+            </td>
+            <td id="subtotal-${index}" class="py-3 px-3 text-right font-semibold text-slate-900 text-xs">
+              ${selectedProd ? `$${subtotal.toLocaleString(undefined, {minimumFractionDigits: 2})}` : '$0.00'}
+            </td>
+            ${isEditable ? `
+              <td class="py-3 px-3 text-center">
+                <button onclick="removeLineItem(${index})" class="text-slate-400 hover:text-red-600 transition-colors p-1" title="Remove line item">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </td>
+            ` : ''}
+          </tr>
+        `;
+      }).join('');
+
+      calculateTotals();
+    }
+
+    function calculateTotals() {
+      let grossTotal = 0;
+      let totalUnits = 0;
+
+      activeLineItems.forEach(item => {
+        const prod = masterCatalog.find(p => p.id === item.selectedProductId);
+        if (prod) {
+          grossTotal += item.qty * prod.price;
+          totalUnits += item.qty;
+        }
+      });
+
+      const contractDiscount = grossTotal * CONTRACT_DISCOUNT_RATE;
+      const netTotal = grossTotal - contractDiscount;
+
+      document.getElementById('summary-units-count').innerText = `${totalUnits} Units`;
+      document.getElementById('summary-gross').innerText = `$${grossTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+      document.getElementById('summary-contract').innerText = `-$${contractDiscount.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+      document.getElementById('summary-net').innerText = `$${netTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+
+      return { grossTotal, netTotal, totalUnits };
+    }
+
+    function saveOrSubmitOrder() {
+      const validItems = activeLineItems.filter(item => item.selectedProductId !== null);
+      if (validItems.length === 0) {
+        showToast("Please select at least one product line item.");
+        return;
+      }
+
+      const { netTotal, totalUnits } = calculateTotals();
+      const allOrders = getOrders();
+
+      if (currentEditingOrderId) {
+        const order = allOrders.find(o => o.id === currentEditingOrderId);
+        if (order) {
+          order.itemsCount = totalUnits;
+          order.totalNum = netTotal;
+          order.total = `$${netTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+          order.lineItems = JSON.parse(JSON.stringify(validItems));
+          saveOrders(allOrders);
+        }
+      } else {
+        const newOrderId = `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
+        const newOrder = {
+          id: newOrderId,
+          date: new Date().toISOString().split('T')[0],
+          itemsCount: totalUnits,
+          totalNum: netTotal,
+          total: `$${netTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}`,
+          status: 'Intake',
+          step: 1,
+          lineItems: JSON.parse(JSON.stringify(validItems))
+        };
+        allOrders.unshift(newOrder);
+        saveOrders(allOrders);
+      }
+
+      window.location.href = 'home.html';
+    }
+
+    function showToast(message) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast-slide pointer-events-auto bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold flex items-center gap-2 border border-slate-700 max-w-md`;
+      toast.innerHTML = `<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.relative')) {
+        activeDropdownRowIndex = null;
+        activeLineItems.forEach((_, idx) => {
+          const dropdown = document.getElementById(`dropdown-list-${idx}`);
+          if (dropdown) dropdown.classList.add('hidden');
+        });
+      }
+    });
+
+    function initCompany() {
+      const savedCompany = localStorage.getItem('current_company') || 'acme';
+      const select = document.getElementById('company-select');
+      if (select) select.value = savedCompany;
+    }
+
+    function handleCompanyChange(newCompany) {
+      localStorage.setItem('current_company', newCompany);
+      showToast(`Selected Company: Acme Corp`);
+    }
+
+    initCompany();
+    initPage();
+  </script>
+</body>
+</html>

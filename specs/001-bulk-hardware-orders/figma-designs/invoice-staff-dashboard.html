@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoice Staff Operations - Billing Dashboard</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#0f172a',
+            surface: '#ffffff',
+            canvas: '#f8fafc',
+            accent: '#2563eb',
+            emerald: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857'
+            },
+            amber: {
+              50: '#fffbe6',
+              100: '#fef3c7',
+              500: '#f59e0b',
+              600: '#d97706',
+              700: '#b45309'
+            },
+            purple: {
+              50: '#faf5ff',
+              100: '#f3e8ff',
+              600: '#9333ea',
+              700: '#7e22ce'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #f8fafc;
+      color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .toast-slide {
+      animation: slideIn 0.3s ease-out forwards;
+    }
+    @keyframes slideIn {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="p-4 md:p-6 max-w-7xl mx-auto min-h-screen flex flex-col justify-between">
+
+  <div>
+    <!-- Global Header with Persona & Navigation Controls -->
+    <header class="bg-white border border-slate-200 rounded-xl p-4 mb-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="bg-purple-700 text-white p-2.5 rounded-lg shadow">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl font-bold text-slate-900 tracking-tight">Enterprise Billing & Invoice Center</h1>
+            <span class="bg-purple-100 text-purple-800 text-[11px] font-bold px-2 py-0.5 rounded border border-purple-200">Invoice Staff Portal</span>
+          </div>
+          <p class="text-xs text-slate-500">Client Invoicing, Contract Net Calculation & Accounts Receivable Management</p>
+        </div>
+      </div>
+
+      <!-- Navigation & System Selectors Bar -->
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- User Persona Role Selector -->
+        <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700">
+          <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+          <span class="text-slate-400">Role:</span>
+          <select id="user-role-select" onchange="handleRoleChange(this.value)" class="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer">
+            <option value="invoice" selected>Invoice Employee</option>
+            <option value="warehouse">Warehouse Operator</option>
+            <option value="enterprise">Enterprise User</option>
+          </select>
+        </div>
+
+        <!-- Right-Aligned Contract Badge -->
+        <div class="hidden xl:flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg px-3 py-1.5 text-xs font-semibold">
+          <span class="text-blue-700 font-bold">Contract #EC-8942</span>
+          <span class="text-blue-300">&bull;</span>
+          <span class="text-blue-600 font-medium">Net 30 Terms</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN INVOICE DASHBOARD -->
+    <main class="space-y-6">
+      
+      <!-- Orders Ready for Invoicing & Dispatch -->
+      <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5 pb-4 border-b border-slate-100">
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-lg font-bold text-slate-900">Orders Ready for Invoicing</h2>
+              <span id="unbilled-queue-badge" class="bg-purple-100 text-purple-800 text-xs font-bold px-2.5 py-0.5 rounded-full">0 Orders</span>
+            </div>
+            <p class="text-xs text-slate-500">Shipped hardware orders awaiting tax invoice generation and client accounting review</p>
+          </div>
+
+          <!-- Queue Search Bar -->
+          <div class="flex items-center gap-3 w-full sm:w-auto">
+            <div class="relative flex-1 sm:w-64">
+              <input type="text" id="invoice-search" oninput="renderInvoiceDashboard()" placeholder="Search Order ID, Invoice #, or client..." class="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+              <svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead>
+              <tr class="text-xs uppercase text-slate-400 border-b border-slate-200 bg-slate-50/50">
+                <th class="py-3 px-4">Order & Invoice ID</th>
+                <th class="py-3 px-4">Billed Client Account</th>
+                <th class="py-3 px-4">Dispatch & Carrier info</th>
+                <th class="py-3 px-4">Net Billed Amount</th>
+                <th class="py-3 px-4">Billing Status</th>
+                <th class="py-3 px-4 text-right">Invoice Action</th>
+              </tr>
+            </thead>
+            <tbody id="invoice-queue-tbody" class="divide-y divide-slate-100">
+              <!-- Dynamically populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Historical Invoices & Billing Ledger -->
+      <section class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+        <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Historical Invoice & Remittance Ledger</h3>
+            <p class="text-xs text-slate-500">Complete record of issued enterprise invoices, payment dates, and delivery receipts</p>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead>
+              <tr class="text-xs uppercase text-slate-400 border-b border-slate-200">
+                <th class="py-3 px-4">Invoice #</th>
+                <th class="py-3 px-4">Order & Client Ref</th>
+                <th class="py-3 px-4">Sent Date / Due Date</th>
+                <th class="py-3 px-4">Final Net Amount</th>
+                <th class="py-3 px-4">Payment Status</th>
+                <th class="py-3 px-4 text-right">Document</th>
+              </tr>
+            </thead>
+            <tbody id="invoice-ledger-tbody" class="divide-y divide-slate-100">
+              <!-- Dynamically populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script>
+    const CONTRACT_DISCOUNT_RATE = 0.15; // 15% flat rate
+    const TAX_RATE = 0.0825; // 8.25% State/Commercial Tax
+
+    const masterCatalog = [
+      { id: 'HW-101', name: 'Rack Server Blade X500 (64-Core, 256GB RAM)', price: 4200.00 },
+      { id: 'HW-102', name: 'Enterprise Workstation Pro (32-Core, RTX 4080)', price: 2800.00 },
+      { id: 'HW-103', name: 'Managed 48-Port Switch (10GbE SFP+)', price: 1150.00 },
+      { id: 'HW-104', name: '27" UltraWide Color-Accurate Monitor', price: 650.00 },
+      { id: 'HW-105', name: 'High-Performance GPU Blade 80GB', price: 3500.00 },
+      { id: 'HW-106', name: 'Enterprise NVMe SAN Storage Array 50TB', price: 8900.00 }
+    ];
+
+    const defaultOrders = [
+      {
+        id: 'ORD-9821',
+        clientName: 'Acme Corporation Enterprise Data Hub',
+        clientEmail: 'ap-finance@acme-corp.com',
+        clientContact: 'Sarah Jenkins',
+        clientEin: 'EIN: 12-3456789',
+        date: '2026-08-16',
+        itemsCount: 45,
+        total: '$142,800.00',
+        status: 'Shipped',
+        step: 3,
+        carrier: 'FedEx Freight Priority',
+        trackingNumber: 'TRK-9821-8842',
+        invoiceStatus: 'Unbilled',
+        invoiceNumber: 'INV-2026-9821',
+        invoiceDate: '2026-08-17',
+        dueDate: '2026-09-16',
+        staffNote: 'Priority enterprise rollout for Q3 data center expansion.',
+        lineItems: [
+          { rowId: 1, selectedProductId: 'HW-101', searchQuery: 'Rack Server Blade X500 (64-Core, 256GB RAM)', qty: 30 },
+          { rowId: 2, selectedProductId: 'HW-103', searchQuery: 'Managed 48-Port Switch (10GbE SFP+)', qty: 15 }
+        ]
+      },
+      {
+        id: 'ORD-9650',
+        clientName: 'Apex Dynamics Systems Inc.',
+        clientEmail: 'billing@apexdynamics.com',
+        clientContact: 'Mark Vance',
+        clientEin: 'EIN: 45-9821034',
+        date: '2026-08-14',
+        itemsCount: 8,
+        total: '$13,950.00',
+        status: 'Shipped',
+        step: 3,
+        carrier: 'DHL Supply Chain',
+        trackingNumber: 'TRK-9650-1102',
+        invoiceStatus: 'Sent',
+        invoiceNumber: 'INV-2026-9650',
+        invoiceDate: '2026-08-15',
+        dueDate: '2026-09-14',
+        staffNote: 'Invoice sent via email to AP. Net 30 terms active.',
+        lineItems: [
+          { rowId: 1, selectedProductId: 'HW-102', searchQuery: 'Enterprise Workstation Pro (32-Core, RTX 4080)', qty: 4 },
+          { rowId: 2, selectedProductId: 'HW-104', searchQuery: '27" UltraWide Color-Accurate Monitor', qty: 4 }
+        ]
+      },
+      {
+        id: 'ORD-9410',
+        clientName: 'Starlight Global Logistics',
+        clientEmail: 'ap@starlightglobal.io',
+        clientContact: 'Elena Rostova',
+        clientEin: 'EIN: 88-1029384',
+        date: '2026-08-10',
+        itemsCount: 12,
+        total: '$35,700.00',
+        status: 'Shipped',
+        step: 3,
+        carrier: 'UPS Worldwide Logistics',
+        trackingNumber: 'TRK-9410-4491',
+        invoiceStatus: 'Draft',
+        invoiceNumber: 'INV-2026-9410',
+        invoiceDate: '2026-08-11',
+        dueDate: '2026-09-10',
+        staffNote: 'Awaiting PO verification from client procurement team.',
+        lineItems: [
+          { rowId: 1, selectedProductId: 'HW-105', searchQuery: 'High-Performance GPU Blade 80GB', qty: 10 },
+          { rowId: 2, selectedProductId: 'HW-103', searchQuery: 'Managed 48-Port Switch (10GbE SFP+)', qty: 2 }
+        ]
+      },
+      {
+        id: 'ORD-9280',
+        clientName: 'Nexus AI Research Labs',
+        clientEmail: 'finance@nexus-ai.org',
+        clientContact: 'David Chen',
+        clientEin: 'EIN: 33-7749201',
+        date: '2026-07-28',
+        itemsCount: 24,
+        total: '$98,430.00',
+        status: 'Delivered',
+        step: 4,
+        carrier: 'FedEx Freight Priority',
+        trackingNumber: 'TRK-9280-9912',
+        invoiceStatus: 'Sent',
+        invoiceNumber: 'INV-2026-9280',
+        invoiceDate: '2026-07-29',
+        dueDate: '2026-08-28',
+        staffNote: 'Remittance reminder issued to client finance.',
+        lineItems: [
+          { rowId: 1, selectedProductId: 'HW-106', searchQuery: 'Enterprise NVMe SAN Storage Array 50TB', qty: 10 },
+          { rowId: 2, selectedProductId: 'HW-101', searchQuery: 'Rack Server Blade X500 (64-Core, 256GB RAM)', qty: 14 }
+        ]
+      },
+      {
+        id: 'ORD-9102',
+        clientName: 'Acme Corporation Enterprise Data Hub',
+        clientEmail: 'ap-finance@acme-corp.com',
+        clientContact: 'Sarah Jenkins',
+        clientEin: 'EIN: 12-3456789',
+        date: '2026-06-15',
+        itemsCount: 120,
+        total: '$380,500.00',
+        status: 'Delivered',
+        step: 4,
+        carrier: 'Acme Internal Fleet',
+        trackingNumber: 'TRK-9102-9900',
+        invoiceStatus: 'Paid',
+        invoiceNumber: 'INV-2026-9102',
+        invoiceDate: '2026-06-16',
+        dueDate: '2026-07-16',
+        staffNote: 'Paid in full via Wire Transfer Ref #ACH-994821.',
+        lineItems: [
+          { rowId: 1, selectedProductId: 'HW-106', searchQuery: 'Enterprise NVMe SAN Storage Array 50TB', qty: 50 }
+        ]
+      },
+      {
+        id: 'ORD-8710',
+        clientName: 'BrightWave Renewable Energy',
+        clientEmail: 'accounts@brightwave-energy.com',
+        clientContact: 'Priya Nair',
+        clientEin: 'EIN: 27-6614523',
+        date: '2026-05-05',
+        itemsCount: 18,
+        total: '$34,503.19',
+        status: 'Delivered',
+        step: 4,
+        carrier: 'UPS Worldwide Logistics',
+        trackingNumber: 'TRK-8710-2244',
+        invoiceStatus: 'Paid',
+        invoiceNumber: 'INV-2026-8710',
+        invoiceDate: '2026-05-06',
+        dueDate: '2026-06-05',
+        staffNote: 'Paid in full via Wire Transfer Ref #ACH-771205.',
+        lineItems: [
+          { rowId: 1, selectedProductId: 'HW-102', searchQuery: 'Enterprise Workstation Pro (32-Core, RTX 4080)', qty: 12 },
+          { rowId: 2, selectedProductId: 'HW-104', searchQuery: '27" UltraWide Color-Accurate Monitor', qty: 6 }
+        ]
+      },
+      {
+        id: 'ORD-8590',
+        clientName: 'Titan Steel Manufacturing',
+        clientEmail: 'ap@titansteel.com',
+        clientContact: 'Robert Klein',
+        clientEin: 'EIN: 51-2287410',
+        date: '2026-04-18',
+        itemsCount: 30,
+        total: '$27,143.69',
+        status: 'Shipped',
+        step: 3,
+        carrier: 'DHL Supply Chain',
+        trackingNumber: 'TRK-8590-5567',
+        invoiceStatus: 'Sent',
+        invoiceNumber: 'INV-2026-8590',
+        invoiceDate: '2026-04-19',
+        dueDate: '2026-05-19',
+        staffNote: 'Invoice sent via email to AP. Net 30 terms active.',
+        lineItems: [
+          { rowId: 1, selectedProductId: 'HW-103', searchQuery: 'Managed 48-Port Switch (10GbE SFP+)', qty: 20 },
+          { rowId: 2, selectedProductId: 'HW-104', searchQuery: '27" UltraWide Color-Accurate Monitor', qty: 10 }
+        ]
+      },
+      {
+        id: 'ORD-8455',
+        clientName: 'Meridian Healthcare Systems',
+        clientEmail: 'billing@meridianhealth.org',
+        clientContact: 'Dr. Lisa Owens',
+        clientEin: 'EIN: 63-4471982',
+        date: '2026-03-30',
+        itemsCount: 12,
+        total: '$43,798.15',
+        status: 'Delivered',
+        step: 4,
+        carrier: 'FedEx Freight Priority',
+        trackingNumber: 'TRK-8455-9910',
+        invoiceStatus: 'Paid',
+        invoiceNumber: 'INV-2026-8455',
+        invoiceDate: '2026-03-31',
+        dueDate: '2026-04-30',
+        staffNote: 'Paid in full via Wire Transfer Ref #ACH-663390.',
+        lineItems: [
+          { rowId: 1, selectedProductId: 'HW-101', searchQuery: 'Rack Server Blade X500 (64-Core, 256GB RAM)', qty: 8 },
+          { rowId: 2, selectedProductId: 'HW-105', searchQuery: 'High-Performance GPU Blade 80GB', qty: 4 }
+        ]
+      }
+    ];
+
+    function getOrders() {
+      const stored = localStorage.getItem('procurement_orders');
+      if (stored) {
+        try { return JSON.parse(stored); } catch(e) {}
+      }
+      localStorage.setItem('procurement_orders', JSON.stringify(defaultOrders));
+      return defaultOrders;
+    }
+
+    function renderInvoiceDashboard() {
+      const orders = getOrders();
+      const searchQuery = document.getElementById('invoice-search').value.toLowerCase();
+
+      const eligibleOrders = orders.filter(o => o.status === 'Shipped' || o.status === 'Delivered' || o.invoiceStatus === 'Sent' || o.invoiceStatus === 'Paid');
+
+      let countPendingBilling = 0;
+      orders.forEach(o => {
+        if (o.invoiceStatus === 'Unbilled' || o.invoiceStatus === 'Draft') {
+          countPendingBilling++;
+        }
+      });
+
+      const unbilledBadge = document.getElementById('unbilled-queue-badge');
+      if (unbilledBadge) unbilledBadge.innerText = `${countPendingBilling} Pending`;
+
+      const filteredQueue = eligibleOrders.filter(o => {
+        return o.id.toLowerCase().includes(searchQuery) ||
+               (o.invoiceNumber || '').toLowerCase().includes(searchQuery) ||
+               (o.clientName || '').toLowerCase().includes(searchQuery) ||
+               (o.carrier || '').toLowerCase().includes(searchQuery);
+      });
+
+      const queueTbody = document.getElementById('invoice-queue-tbody');
+      if (filteredQueue.length === 0) {
+        queueTbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-400 text-xs">No matching orders awaiting billing found.</td></tr>`;
+      } else {
+        queueTbody.innerHTML = filteredQueue.map(o => {
+          let gross = 0;
+          (o.lineItems || []).forEach(li => {
+            const prod = masterCatalog.find(p => p.id === li.selectedProductId);
+            gross += (prod ? prod.price : 0) * li.qty;
+          });
+          const discount = gross * CONTRACT_DISCOUNT_RATE;
+          const net = gross - discount;
+          const totalWithTax = net * (1 + TAX_RATE);
+
+          let badgeColor = 'bg-slate-100 text-slate-800';
+          if (o.invoiceStatus === 'Draft') badgeColor = 'bg-amber-100 text-amber-800';
+          if (o.invoiceStatus === 'Sent') badgeColor = 'bg-purple-100 text-purple-800';
+          if (o.invoiceStatus === 'Paid') badgeColor = 'bg-emerald-100 text-emerald-800';
+
+          return `
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="py-3 px-4">
+                <div class="font-bold text-slate-900">${o.invoiceNumber || 'INV-2026-TBD'}</div>
+                <div class="text-[11px] text-slate-400 font-mono">Ref: ${o.id}</div>
+              </td>
+              <td class="py-3 px-4">
+                <div class="text-xs font-bold text-slate-900">${o.clientName || 'Acme Corporation Enterprise Data Hub'}</div>
+                <div class="text-[10px] text-slate-500 font-medium">${o.clientEmail || 'finance-ap@acme-corp.com'}</div>
+              </td>
+              <td class="py-3 px-4">
+                <div class="text-xs font-semibold text-slate-800">${o.carrier || 'Standard Freight'}</div>
+                <div class="text-[10px] text-slate-400 font-mono">${o.trackingNumber || 'N/A'}</div>
+              </td>
+              <td class="py-3 px-4 font-extrabold text-slate-900">$${totalWithTax.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+              <td class="py-3 px-4">
+                <span class="px-2.5 py-0.5 rounded text-xs font-bold ${badgeColor}">${o.invoiceStatus || 'Draft'}</span>
+              </td>
+              <td class="py-3 px-4 text-right">
+                <a href="invoice-staff-detail-page.html?id=${o.id}" class="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold transition-colors shadow-sm inline-flex items-center gap-1">
+                  <span>View</span>
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </a>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      const ledgerTbody = document.getElementById('invoice-ledger-tbody');
+      const historicalList = orders.filter(o => o.invoiceStatus === 'Sent' || o.invoiceStatus === 'Paid');
+
+      if (historicalList.length === 0) {
+        ledgerTbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-slate-400 text-xs">No issued invoices recorded in historical ledger.</td></tr>`;
+      } else {
+        ledgerTbody.innerHTML = historicalList.map(o => {
+          let gross = 0;
+          (o.lineItems || []).forEach(li => {
+            const prod = masterCatalog.find(p => p.id === li.selectedProductId);
+            gross += (prod ? prod.price : 0) * li.qty;
+          });
+          const netTotal = (gross * (1 - CONTRACT_DISCOUNT_RATE)) * (1 + TAX_RATE);
+
+          return `
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="py-3 px-4 font-bold text-purple-700 font-mono">${o.invoiceNumber || 'INV-2026-9821'}</td>
+              <td class="py-3 px-4 text-xs font-semibold text-slate-800">
+                <div>${o.id}</div>
+                <div class="text-[10px] text-slate-500 font-normal">${o.clientName || 'Acme Corp'}</div>
+              </td>
+              <td class="py-3 px-4 text-xs text-slate-600">
+                <div>Sent: ${o.invoiceDate || '2026-08-17'}</div>
+                <div class="text-[10px] text-slate-400">Due: ${o.dueDate || '2026-09-16'}</div>
+              </td>
+              <td class="py-3 px-4 font-bold text-slate-900">$${netTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+              <td class="py-3 px-4">
+                <span class="px-2 py-0.5 rounded text-[11px] font-bold ${o.invoiceStatus === 'Paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-purple-100 text-purple-800'}">
+                  ${o.invoiceStatus}
+                </span>
+              </td>
+              <td class="py-3 px-4 text-right">
+                <a href="invoice-staff-detail-page.html?id=${o.id}" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors">
+                  Invoice Doc
+                </a>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    function showToast(message) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast-slide pointer-events-auto bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold flex items-center gap-2 border border-slate-700 max-w-md`;
+      toast.innerHTML = `<svg class="w-4 h-4 text-purple-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 3200);
+    }
+
+    const roleRoutes = {
+      enterprise: 'enterprise-user-dashboard.html',
+      warehouse: 'warehouse-ops-dashboard.html',
+      invoice: 'invoice-staff-dashboard.html'
+    };
+
+    function handleRoleChange(role) {
+      localStorage.setItem('current_user_role', role);
+      window.location.href = roleRoutes[role];
+    }
+
+    window.onload = function() {
+      getOrders();
+      renderInvoiceDashboard();
+    };
+  </script>
+</body>
+</html>

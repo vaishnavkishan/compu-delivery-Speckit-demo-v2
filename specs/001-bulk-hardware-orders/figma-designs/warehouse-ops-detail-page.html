@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Warehouse Order Fulfillment & Asset Tagging</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#0f172a',
+            surface: '#ffffff',
+            canvas: '#f8fafc',
+            amber: {
+              50: '#fffbe6',
+              100: '#fef3c7',
+              500: '#f59e0b',
+              600: '#d97706',
+              700: '#b45309'
+            },
+            emerald: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #f8fafc;
+      color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .fulfillment-paper {
+      background: #ffffff;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+    }
+    .toast-slide {
+      animation: slideIn 0.3s ease-out forwards;
+    }
+    @keyframes slideIn {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="p-4 md:p-6 max-w-7xl mx-auto min-h-screen flex flex-col justify-between">
+
+  <div>
+    <!-- Top Action Bar & Back Link -->
+    <div class="bg-white border border-slate-200 rounded-xl p-4 mb-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div class="flex items-center gap-3">
+        <a href="warehouse-ops-dashboard.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-md text-xs font-semibold transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+          </svg>
+          Back to Warehouse Queue
+        </a>
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h2 id="wh-order-title" class="text-lg font-bold text-slate-900">Fulfillment Manifest: ORD-9821</h2>
+            <span id="wh-order-status-badge" class="px-2.5 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800">Processing</span>
+            <span id="wh-header-client-badge" class="bg-blue-50 text-blue-800 text-xs font-bold px-2.5 py-0.5 rounded border border-blue-200">Client: Acme Corp</span>
+          </div>
+          <p id="wh-order-subtitle" class="text-xs text-slate-500">Assign hardware serial tags and authorize logistics release</p>
+        </div>
+      </div>
+
+      <!-- Action Buttons Bar -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="wh-auto-tag-all-btn" onclick="autoTagAllItems()" class="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">
+          <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Auto-Generate All Tags
+        </button>
+      </div>
+    </div>
+
+    <!-- MAIN FULFILLMENT DOCUMENT CONTAINER (Mirroring Invoice Detail layout) -->
+    <main id="printable-fulfillment-area" class="fulfillment-paper border border-slate-200 rounded-2xl p-6 md:p-10 space-y-8">
+      
+      <!-- Facility Header Branding -->
+      <div class="flex flex-col sm:flex-row justify-between items-start gap-6 pb-6 border-b border-slate-200">
+        <div>
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center font-black text-sm">WH</div>
+            <span class="text-xl font-black text-slate-900 tracking-tight">Acme Central Logistics & Distribution Hub</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1">Facility Hub 1 &bull; 100 Logistics Way, Dock 4B, Austin, TX 78701</p>
+          <p class="text-xs text-slate-500">Logistics Contract #EC-8942 &bull; SLA: Same-Day Dispatch</p>
+        </div>
+
+        <div class="text-left sm:text-right">
+          <h2 class="text-2xl font-black text-slate-900 uppercase tracking-tight">FULFILLMENT MANIFEST</h2>
+          <div class="mt-2 space-y-0.5 text-xs">
+            <div class="flex justify-start sm:justify-end gap-2 text-slate-600">
+              <span class="font-bold text-slate-800">Order ID:</span>
+              <span id="doc-order-id" class="font-mono font-bold text-slate-900">ORD-9821</span>
+            </div>
+            <div class="flex justify-start sm:justify-end gap-2 text-slate-600">
+              <span class="font-bold text-slate-800">Submission Date:</span>
+              <span id="doc-order-date">2026-08-16</span>
+            </div>
+            <div class="flex justify-start sm:justify-end gap-2 text-slate-600">
+              <span class="font-bold text-slate-800">Fulfillment Status:</span>
+              <span id="doc-order-status" class="font-bold text-amber-700">Processing</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lifecycle Stepper Line -->
+      <div class="bg-slate-50/70 border border-slate-200 p-4 rounded-xl">
+        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Order Lifecycle Progression</h4>
+        <div id="wh-stepper-container" class="relative flex justify-between items-center py-1">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+
+      <!-- 3-Column Info Cards Grid (Destination, Carrier, Tag Progress) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs bg-slate-50/70 p-4 rounded-xl border border-slate-200">
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Ship-To Destination</span>
+          <h4 id="wh-dest-client-name" class="font-bold text-slate-900 text-sm mt-0.5">Acme Enterprise Data Hub</h4>
+          <p class="text-slate-600 mt-1">Attn: Hardware Intake & Facilities</p>
+          <p class="text-slate-600">100 Logistics Way, Dock 4B</p>
+          <p class="text-slate-600">Austin, TX 78701</p>
+        </div>
+
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Carrier & Waybill Setup</span>
+          <div class="mt-1 space-y-2">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 mb-0.5">Logistics Carrier</label>
+              <select id="wh-carrier-select" onchange="updateOrderDetails()" class="w-full px-2.5 py-1 border border-slate-300 rounded text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                <option value="FedEx Freight Priority">FedEx Freight Priority</option>
+                <option value="DHL Supply Chain">DHL Supply Chain</option>
+                <option value="UPS Worldwide Logistics">UPS Worldwide Logistics</option>
+                <option value="Acme Internal Fleet">Acme Logistics Fleet</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 mb-0.5">Waybill / Tracking #</label>
+              <div class="flex gap-1.5">
+                <input type="text" id="wh-tracking-input" onchange="updateOrderDetails()" placeholder="e.g. TRK-892019482" class="w-full px-2.5 py-1 border border-slate-300 rounded text-xs font-mono text-slate-800 focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white">
+                <button onclick="generateTrackingNumber()" class="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-[11px] font-semibold rounded shrink-0">Gen</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Serial Asset Tag Progress</span>
+          <div class="mt-1.5 space-y-2">
+            <div class="flex justify-between items-center">
+              <span id="wh-tagging-completion-text" class="text-xs font-bold text-slate-800">0 / 0 Units Serialized</span>
+              <span id="wh-tagging-percent" class="text-xs font-bold text-blue-600">0%</span>
+            </div>
+            <div class="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+              <div id="wh-tagging-progress-bar" class="bg-blue-600 h-full w-0 transition-all duration-300"></div>
+            </div>
+            <div id="wh-tag-validation-box" class="p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-800 flex items-center gap-1.5 mt-2">
+              <svg class="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+              <span>Asset tagging in progress. Tag all units to ship.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Streamlined Line Items Table (Clean like Invoice Detail) -->
+      <div>
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Itemized Line Items & Serial Asset Tags</h3>
+          <span class="text-[11px] text-slate-400">Click any line item to expand/manage unit tags</span>
+        </div>
+
+        <div class="overflow-x-auto border border-slate-200 rounded-xl">
+          <table class="w-full text-left text-xs">
+            <thead>
+              <tr class="uppercase text-slate-400 border-b border-slate-200 bg-slate-100/60">
+                <th class="py-2.5 px-3">Item Specification / SKU</th>
+                <th class="py-2.5 px-3 text-center">Qty Required</th>
+                <th class="py-2.5 px-3 text-center">Tagged Status</th>
+                <th class="py-2.5 px-3">Serial Tag Manifest Summary</th>
+                <th class="py-2.5 px-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="wh-doc-items-tbody" class="divide-y divide-slate-200">
+              <!-- Dynamically rendered rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Dispatch & Signoff Summary Section -->
+      <div class="flex flex-col sm:flex-row justify-between items-start md:items-center gap-6 pt-4 border-t border-slate-200">
+        <div class="w-full sm:w-1/2 space-y-2">
+          <div class="p-3 bg-blue-50/50 border border-blue-200 rounded-lg text-xs text-blue-900">
+            <p class="font-bold flex items-center gap-1">
+              <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              Warehouse Dispatch Protocol
+            </p>
+            <p class="text-[11px] text-slate-600 mt-1">Order release locks all serial tags and generates carrier waybill documentation automatically.</p>
+          </div>
+        </div>
+
+        <div class="w-full sm:w-1/2 flex flex-col items-end gap-3">
+          <button id="wh-dispatch-ship-btn" onclick="shipOrder()" class="w-full sm:w-auto min-w-[240px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-all text-sm flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span>Complete Asset Tagging & Ship Order</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Footer Signoff -->
+      <div class="pt-6 border-t border-slate-200 text-center text-[11px] text-slate-400">
+        Acme Warehouse Logistics Portal &bull; Contract #EC-8942 &bull; Authorized Dispatch Management
+      </div>
+    </main>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script>
+    const masterCatalog = [
+      { id: 'HW-101', name: 'Rack Server Blade X500 (64-Core, 256GB RAM)', price: 4200.00 },
+      { id: 'HW-102', name: 'Enterprise Workstation Pro (32-Core, RTX 4080)', price: 2800.00 },
+      { id: 'HW-103', name: 'Managed 48-Port Switch (10GbE SFP+)', price: 1150.00 },
+      { id: 'HW-104', name: '27" UltraWide Color-Accurate Monitor', price: 650.00 },
+      { id: 'HW-105', name: 'High-Performance GPU Blade 80GB', price: 3500.00 },
+      { id: 'HW-106', name: 'Enterprise NVMe SAN Storage Array 50TB', price: 8900.00 }
+    ];
+
+    const defaultOrders = [
+      {
+        id: 'ORD-9821',
+        clientName: 'Acme Corporation Enterprise Data Hub',
+        date: '2026-08-16',
+        itemsCount: 45,
+        total: '$142,800.00',
+        status: 'Processing',
+        step: 2,
+        carrier: 'FedEx Freight Priority',
+        trackingNumber: 'TRK-9821-8842',
+        lineItems: [
+          { rowId: 1, selectedProductId: 'HW-101', searchQuery: 'Rack Server Blade X500 (64-Core, 256GB RAM)', qty: 30, tags: ['TAG-HW101-9821-001', 'TAG-HW101-9821-002'] },
+          { rowId: 2, selectedProductId: 'HW-103', searchQuery: 'Managed 48-Port Switch (10GbE SFP+)', qty: 15, tags: [] }
+        ]
+      },
+      {
+        id: 'ORD-9650',
+        clientName: 'Apex Dynamics Systems Inc.',
+        date: '2026-08-14',
+        itemsCount: 8,
+        total: '$13,950.00',
+        status: 'Shipped',
+        step: 3,
+        carrier: 'DHL Supply Chain',
+        trackingNumber: 'TRK-9650-1102',
+        lineItems: [
+          { 
+            rowId: 1, 
+            selectedProductId: 'HW-102', 
+            searchQuery: 'Enterprise Workstation Pro (32-Core, RTX 4080)', 
+            qty: 4, 
+            tags: ['TAG-HW102-9650-001', 'TAG-HW102-9650-002', 'TAG-HW102-9650-003', 'TAG-HW102-9650-004'] 
+          },
+          { 
+            rowId: 2, 
+            selectedProductId: 'HW-104', 
+            searchQuery: '27" UltraWide Color-Accurate Monitor', 
+            qty: 4, 
+            tags: ['TAG-HW104-9650-001', 'TAG-HW104-9650-002', 'TAG-HW104-9650-003', 'TAG-HW104-9650-004'] 
+          }
+        ]
+      }
+    ];
+
+    let currentOrderId = null;
+
+    function getOrders() {
+      const stored = localStorage.getItem('procurement_orders');
+      if (stored) {
+        try { 
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.length > 0) return parsed;
+        } catch(e) {}
+      }
+      localStorage.setItem('procurement_orders', JSON.stringify(defaultOrders));
+      return defaultOrders;
+    }
+
+    function saveOrders(orders) {
+      localStorage.setItem('procurement_orders', JSON.stringify(orders));
+    }
+
+    function renderWarehouseOrderFulfillment() {
+      const urlParams = new URLSearchParams(window.location.search);
+      currentOrderId = urlParams.get('id');
+
+      const orders = getOrders();
+      let order = orders.find(o => o.id === currentOrderId);
+
+      if (!order) {
+        if (orders.length > 0) {
+          order = orders[0];
+          currentOrderId = order.id;
+        } else {
+          showToast('No order found to display.');
+          return;
+        }
+      }
+
+      document.getElementById('wh-order-title').innerText = `Fulfillment Manifest: ${order.id}`;
+      document.getElementById('doc-order-id').innerText = order.id;
+      document.getElementById('doc-order-date').innerText = order.date || '2026-08-16';
+      document.getElementById('wh-dest-client-name').innerText = order.clientName || 'Acme Corporation Enterprise Data Hub';
+      
+      const headerClientBadge = document.getElementById('wh-header-client-badge');
+      if (headerClientBadge) {
+        headerClientBadge.innerText = `Client: ${order.clientName || 'Acme Corp'}`;
+      }
+
+      const badge = document.getElementById('wh-order-status-badge');
+      const docStatus = document.getElementById('doc-order-status');
+      badge.innerText = order.status;
+      docStatus.innerText = order.status;
+
+      badge.className = 'px-2.5 py-0.5 rounded text-xs font-bold ';
+      if (order.status === 'Intake') badge.className += 'bg-blue-100 text-blue-800';
+      else if (order.status === 'Processing') badge.className += 'bg-amber-100 text-amber-800';
+      else if (order.status === 'Shipped') badge.className += 'bg-indigo-100 text-indigo-800';
+      else if (order.status === 'Delivered') badge.className += 'bg-emerald-100 text-emerald-800';
+
+      renderStepper(order.step);
+
+      document.getElementById('wh-carrier-select').value = order.carrier || 'FedEx Freight Priority';
+      document.getElementById('wh-tracking-input').value = order.trackingNumber || `TRK-${order.id.replace('ORD-', '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      const isLocked = (order.status === 'Shipped' || order.status === 'Delivered');
+
+      document.getElementById('wh-auto-tag-all-btn').style.display = isLocked ? 'none' : 'inline-flex';
+
+      const shipBtn = document.getElementById('wh-dispatch-ship-btn');
+      if (isLocked) {
+        shipBtn.disabled = true;
+        shipBtn.className = 'w-full sm:w-auto min-w-[240px] bg-slate-200 text-slate-500 font-bold py-3 px-6 rounded-lg text-sm cursor-not-allowed flex items-center justify-center gap-2';
+        shipBtn.innerHTML = `<span>Order Already Dispatched</span>`;
+      } else {
+        shipBtn.disabled = false;
+        shipBtn.className = 'w-full sm:w-auto min-w-[240px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-all text-sm flex items-center justify-center gap-2';
+        shipBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>Complete Asset Tagging & Ship Order</span>`;
+      }
+
+      // Render Itemized Line Items Table
+      const tbody = document.getElementById('wh-doc-items-tbody');
+      let grandTotalReq = 0;
+      let grandTotalTagged = 0;
+
+      tbody.innerHTML = (order.lineItems || []).map((li, itemIdx) => {
+        const prod = masterCatalog.find(p => p.id === li.selectedProductId) || { name: li.searchQuery, id: li.selectedProductId || 'SKU-REQ' };
+        const requiredQty = li.qty;
+        if (!li.tags) li.tags = [];
+        
+        grandTotalReq += requiredQty;
+        const validTags = li.tags.filter(t => t && t.trim() !== '');
+        const validTagsCount = validTags.length;
+        grandTotalTagged += validTagsCount;
+
+        const isFullyTagged = validTagsCount >= requiredQty;
+
+        // Build compact serial tag manifest badges
+        let manifestBadgesHtml = '';
+        if (validTagsCount === 0) {
+          manifestBadgesHtml = `<span class="text-amber-700 font-medium italic text-[11px]">No serial tags assigned yet</span>`;
+        } else {
+          const displayTags = validTags.slice(0, 3);
+          manifestBadgesHtml = displayTags.map(tag => `
+            <span class="inline-flex items-center gap-1 font-mono text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded font-semibold">
+              <svg class="w-2.5 h-2.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              ${tag}
+            </span>
+          `).join('');
+
+          if (validTagsCount > 3) {
+            manifestBadgesHtml += `<span class="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold border border-slate-200">+${validTagsCount - 3} more</span>`;
+          }
+        }
+
+        return `
+          <tr class="hover:bg-slate-50/70 transition-colors">
+            <td class="py-3 px-3">
+              <div class="font-bold text-slate-900">${prod.name}</div>
+              <div class="text-[10px] text-slate-400 font-mono">SKU: ${prod.id}</div>
+            </td>
+            <td class="py-3 px-3 text-center font-extrabold text-slate-800">${requiredQty}</td>
+            <td class="py-3 px-3 text-center">
+              <span class="px-2.5 py-0.5 rounded text-[11px] font-bold ${isFullyTagged ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}">
+                ${validTagsCount} / ${requiredQty} Tagged
+              </span>
+            </td>
+            <td class="py-3 px-3">
+              <div class="flex flex-wrap items-center gap-1.5">
+                ${manifestBadgesHtml}
+              </div>
+            </td>
+            <td class="py-3 px-3 text-right">
+              ${isLocked ? '' : `
+                <button onclick="generateTagsForLine(${itemIdx})" class="px-3 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-colors inline-flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                  <span>${isFullyTagged ? 'Regenerate Tags' : 'Generate Tags'}</span>
+                </button>
+              `}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      // Progress calculations
+      document.getElementById('wh-tagging-completion-text').innerText = `${grandTotalTagged} / ${grandTotalReq} Units Serialized`;
+      const completionPercent = grandTotalReq > 0 ? Math.round((grandTotalTagged / grandTotalReq) * 100) : 0;
+      document.getElementById('wh-tagging-percent').innerText = `${completionPercent}%`;
+      document.getElementById('wh-tagging-progress-bar').style.width = `${completionPercent}%`;
+
+      const validationBox = document.getElementById('wh-tag-validation-box');
+      if (grandTotalTagged >= grandTotalReq && grandTotalReq > 0) {
+        validationBox.className = 'p-2 bg-emerald-50 border border-emerald-200 rounded text-[11px] text-emerald-800 flex items-center gap-1.5 mt-2';
+        validationBox.innerHTML = `
+          <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          <span>All ${grandTotalReq} hardware units have verified serial tags. Ready to ship!</span>
+        `;
+      } else {
+        validationBox.className = 'p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-800 flex items-center gap-1.5 mt-2';
+        validationBox.innerHTML = `
+          <svg class="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          <span>Asset tagging in progress (${grandTotalTagged}/${grandTotalReq} units ready). Complete all items to ship.</span>
+        `;
+      }
+    }
+
+    function renderStepper(step) {
+      const container = document.getElementById('wh-stepper-container');
+      container.innerHTML = `
+        <div class="absolute top-1/2 left-8 right-8 h-0.5 bg-slate-200 -translate-y-1/2 z-0"></div>
+        <div class="relative z-10 flex flex-col items-center gap-0.5 bg-white px-2">
+          <div class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${step >= 1 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'}">1</div>
+          <span class="text-[10px] font-medium text-slate-600">Intake</span>
+        </div>
+        <div class="relative z-10 flex flex-col items-center gap-0.5 bg-white px-2">
+          <div class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${step >= 2 ? (step > 2 ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white animate-pulse') : 'bg-slate-200 text-slate-500'}">2</div>
+          <span class="text-[10px] font-medium text-slate-600">Processing & Tagging</span>
+        </div>
+        <div class="relative z-10 flex flex-col items-center gap-0.5 bg-white px-2">
+          <div class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${step >= 3 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'}">3</div>
+          <span class="text-[10px] font-medium text-slate-600">Shipped</span>
+        </div>
+        <div class="relative z-10 flex flex-col items-center gap-0.5 bg-white px-2">
+          <div class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${step === 4 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500'}">4</div>
+          <span class="text-[10px] font-medium text-slate-600">Delivered</span>
+        </div>
+      `;
+    }
+
+    function updateOrderDetails() {
+      if (!currentOrderId) return;
+      const orders = getOrders();
+      const order = orders.find(o => o.id === currentOrderId);
+      if (order) {
+        order.carrier = document.getElementById('wh-carrier-select').value;
+        order.trackingNumber = document.getElementById('wh-tracking-input').value.trim();
+        saveOrders(orders);
+      }
+    }
+
+    function generateTagsForLine(itemIdx) {
+      const orders = getOrders();
+      const order = orders.find(o => o.id === currentOrderId);
+      if (!order || !order.lineItems[itemIdx]) return;
+
+      const li = order.lineItems[itemIdx];
+      const sku = li.selectedProductId || 'HW101';
+      li.tags = [];
+      for (let u = 0; u < li.qty; u++) {
+        li.tags.push(`TAG-${sku.replace('-', '')}-${order.id.replace('ORD-', '')}-${String(u + 1).padStart(3, '0')}`);
+      }
+
+      saveOrders(orders);
+      renderWarehouseOrderFulfillment();
+      showToast(`Generated ${li.qty} serial tags for ${sku}.`);
+    }
+
+    function autoTagAllItems() {
+      if (!currentOrderId) return;
+      const orders = getOrders();
+      const order = orders.find(o => o.id === currentOrderId);
+      if (!order) return;
+
+      order.lineItems.forEach(li => {
+        const sku = li.selectedProductId || 'HW101';
+        li.tags = [];
+        for (let u = 0; u < li.qty; u++) {
+          li.tags.push(`TAG-${sku.replace('-', '')}-${order.id.replace('ORD-', '')}-${String(u + 1).padStart(3, '0')}`);
+        }
+      });
+
+      if (order.status === 'Intake') {
+        order.status = 'Processing';
+        order.step = 2;
+      }
+
+      saveOrders(orders);
+      renderWarehouseOrderFulfillment();
+      showToast(`Automatically generated asset tags for all units in ${order.id}`);
+    }
+
+    function generateTrackingNumber() {
+      const rand = Math.floor(100000000 + Math.random() * 900000000);
+      const tracking = `TRK-EXPRESS-${rand}`;
+      document.getElementById('wh-tracking-input').value = tracking;
+      updateOrderDetails();
+      showToast(`Generated tracking waybill: ${tracking}`);
+    }
+
+    function shipOrder() {
+      if (!currentOrderId) return;
+      const orders = getOrders();
+      const order = orders.find(o => o.id === currentOrderId);
+      if (!order) return;
+
+      let totalReq = 0;
+      let totalTagged = 0;
+      (order.lineItems || []).forEach(li => {
+        totalReq += li.qty;
+        totalTagged += (li.tags || []).filter(t => t && t.trim() !== '').length;
+      });
+
+      if (totalTagged < totalReq) {
+        showToast(`Cannot ship order: ${totalReq - totalTagged} units are missing asset tags.`);
+        return;
+      }
+
+      const carrier = document.getElementById('wh-carrier-select').value;
+      const tracking = document.getElementById('wh-tracking-input').value.trim() || `TRK-${order.id.replace('ORD-', '')}-9901`;
+
+      order.status = 'Shipped';
+      order.step = 3;
+      order.carrier = carrier;
+      order.trackingNumber = tracking;
+
+      saveOrders(orders);
+      renderWarehouseOrderFulfillment();
+      showToast(`Order ${order.id} shipped successfully via ${carrier}!`);
+    }
+
+    function showToast(message) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast-slide pointer-events-auto bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold flex items-center gap-2 border border-slate-700 max-w-md`;
+      toast.innerHTML = `<svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 3200);
+    }
+
+    window.onload = function() {
+      renderWarehouseOrderFulfillment();
+    };
+  </script>
+</body>
+</html>
