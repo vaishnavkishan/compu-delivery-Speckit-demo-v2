@@ -109,22 +109,30 @@ and initial spec didn't resolve — asked up to 5 targeted questions one at a ti
 accepted answer directly back into `spec.md` (a new `## Clarifications` section, plus updates to the
 affected Edge Cases, Functional Requirements, Key Entities, and Assumptions).
 
-#### The raw prompt run with no argument:
+#### The raw prompt run with no argument (commit `a052788`):
 
 ```
 /speckit-clarify
 ```
 
-#### Specific requirement clarification:
+#### Specific requirement clarification (commit `850ce79`):
 
 ```
 /speckit-clarify As this is a sample/demo application, we do not want to implement authorization and authentication currently
 ```
 
-#### Clarification using Figma Designs:
+#### Clarification using Figma Designs (commit `de7cd25`):
 
 `/speckit-clarify` can also take a Figma design export (HTML/CSS) as an attachment, instead of or alongside free-text guidance. A spec written before any UI exists has nothing to say about interaction details a mockup makes concrete — this project's export showed a second "volume discount" line, a 5-step order-status tracker, and a fixed hardware catalog, none of which were in `spec.md` yet. Clarify diffs the design against the existing requirements and constitution, asks about each real conflict or gap one question at a time, then encodes the accepted answers back into `spec.md` (a new `### User Interface Overview` subsection plus UI-specific Functional Requirements) — so the spec stays the source of truth implementation follows, not the mockup.
 
 ```
 /speckit-clarify analyse the Figma design html specs/001-bulk-hardware-orders/figma-designs/create-order-page.html and add the information about the UI/UX to be same as html when it is implemented
+```
+
+#### Re-clarifying after the designs change (commit `1b47601`):
+
+Designs aren't static — new mockups get dropped into `figma-designs/` after the spec was already clarified once. Running `/speckit-clarify` again re-diffs the spec against whatever is currently in that folder, not just against the first export: it caught that new dashboard/detail pages had been added for personas the spec never defined (Invoice Staff, Warehouse Operator), that they quietly reverted an already-decided 5-step lifecycle stepper back to 4 steps, that the single-page layout had been split into a dashboard + detail page, and that order line items were now editable post-submission. Each was surfaced as its own question and the accepted answers were folded back into `spec.md`.
+
+```
+/speckit-clarify verify that the spec is matching the designs from html figma-designs folder
 ```
