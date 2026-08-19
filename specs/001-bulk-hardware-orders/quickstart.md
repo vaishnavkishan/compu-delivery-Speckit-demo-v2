@@ -2,22 +2,24 @@
 
 Validates the feature end-to-end (User Stories 1–4) against the contracts in
 `contracts/openapi.yaml` and `contracts/events.md`, and the data model in
-`data-model.md`. Commands assume the project structure and files defined by this
-plan; some paths (e.g. `docker-compose.yml`, `backend/`, `frontend/`) are created
-during implementation, not by `/speckit-plan` itself.
+`data-model.md`. Commands assume the monorepo project structure defined by this
+plan; some paths (e.g. `deploy/docker-compose.yml`, `services/order-api/`,
+`apps/order-portal/`) are created during implementation, not by `/speckit-plan`
+itself. `services/warehouse-api/`, `services/invoice-api/`, and their portals are
+reserved for future features and are not part of this quickstart.
 
 ## Prerequisites
 
 - Java 25, Maven, Node.js (LTS matching Vite/React 19 requirements), Docker.
-- Local dependencies: PostgreSQL 17 and RabbitMQ, started via `docker-compose up -d`
-  from the repo root (see `research.md` #12).
+- Local dependencies: PostgreSQL 17 and RabbitMQ, started via
+  `docker-compose up -d` from `deploy/` (see `research.md` #12).
 
 ## 1. Start dependencies and the backend
 
 ```bash
-docker-compose up -d           # postgres:17, rabbitmq:3-management
-cd backend
-./mvnw spring-boot:run          # runs Flyway migrations on startup, seeds demo data
+cd deploy && docker-compose up -d   # postgres:17, rabbitmq:3-management
+cd ../services/order-api
+./mvnw spring-boot:run              # runs Flyway migrations on startup, seeds demo data
 ```
 
 Expected: service listening on `http://localhost:8080`; Swagger UI available at
@@ -27,7 +29,7 @@ Expected: service listening on `http://localhost:8080`; Swagger UI available at
 ## 2. Start the frontend
 
 ```bash
-cd frontend
+cd apps/order-portal
 npm install
 npm run dev
 ```
@@ -106,19 +108,20 @@ schema was published to the `order.events` exchange with routing key
 ## 9. Automated verification (run during implementation, not by this plan)
 
 ```bash
-cd backend && ./mvnw test                 # JUnit5/Mockito/AssertJ unit tests
-cd backend && ./mvnw verify -Pintegration # Testcontainers-backed integration tests
-cd frontend && npm run test               # Vitest + RTL
+cd services/order-api && ./mvnw test                 # JUnit5/Mockito/AssertJ unit tests
+cd services/order-api && ./mvnw verify -Pintegration  # Testcontainers-backed integration tests
+cd apps/order-portal && npm run test                  # Vitest + RTL
 ```
 
 ## 10. Deployment validation (k3s / Rancher Desktop)
 
 ```bash
-docker build -t order-service:local backend/
-docker build -t order-portal:local frontend/
-helm upgrade --install compu-delivery deploy/helm/ \
-  --set backend.image=order-service:local \
-  --set frontend.image=order-portal:local
+docker build -t order-api:local services/order-api/
+docker build -t order-portal:local apps/order-portal/
+helm upgrade --install order-api deploy/helm/order-api/ \
+  --set image=order-api:local
+helm upgrade --install order-portal deploy/helm/order-portal/ \
+  --set image=order-portal:local
 kubectl get pods
 ```
 

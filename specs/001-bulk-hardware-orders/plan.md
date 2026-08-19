@@ -45,7 +45,12 @@ Postgres/RabbitMQ-backed integration tests); Vitest, React Testing Library
 (PostgreSQL + RabbitMQ), deployed to k3s (Rancher Desktop) via Helm; Docker
 multi-stage builds for backend and frontend images
 
-**Project Type**: web (frontend + backend)
+**Project Type**: web monorepo — a single repository intended to house
+multiple backend API services (order, warehouse, invoice) and their
+corresponding frontend apps as sibling modules. This feature implements only
+the `order-api` service and `order-portal` app; `warehouse-api`,
+`invoice-api`, and their portals are reserved directory slots for future
+features and are not scaffolded here (see `research.md` #9).
 
 **Performance Goals**: Net Total returned to the client within 5s of order
 submission (SC-001); sustain ≥500 bulk order submissions/day across all clients
@@ -111,45 +116,63 @@ specs/001-bulk-hardware-orders/
 ### Source Code (repository root)
 
 ```text
-backend/                          # Spring Boot 3.5 / Java 25, single Maven module
-├── src/main/java/com/compudelivery/orders/
-│   ├── order/                    # BulkOrder, LineItem, OrderStatus, OrderLifecycleService, OrderController
-│   ├── pricing/                  # NetTotalCalculation, pricing service
-│   ├── client/                   # EnterpriseClient, ContractDiscountTerms
-│   ├── catalog/                  # HardwareCatalogItem
-│   ├── identity/                 # CallerIdentity filter + argument resolver (X-Client-Id / X-Operator-Id)
-│   ├── messaging/                # RabbitMQ topology + OrderIntaken publisher
-│   └── web/                      # ProblemDetail exception handling
-├── src/main/resources/
-│   ├── application.yml
-│   └── db/migration/             # Flyway migrations (schema + seed data)
-└── src/test/java/com/compudelivery/orders/
-    ├── unit/                     # JUnit5/Mockito/AssertJ
-    └── integration/              # Testcontainers (PostgreSQL, RabbitMQ)
+pom.xml                           # root Maven reactor POM (aggregates services/*)
 
-frontend/                         # React 19 / TypeScript / Vite / Tailwind
-├── src/
-│   ├── pages/                    # DashboardPage, OrderDetailPage (create/edit)
-│   ├── components/               # LifecycleStepper, CatalogTable, PricingSummary, IdentitySwitcher
-│   ├── api/                      # fetch wrapper attaching X-Client-Id / X-Operator-Id
-│   └── context/                  # IdentityContext (selected demo identity)
-└── tests/                        # Vitest + React Testing Library
+services/                         # backend API services, one Maven module each
+├── order-api/                    # Spring Boot 3.5 / Java 25 — THIS FEATURE
+│   ├── pom.xml
+│   ├── src/main/java/com/compudelivery/orders/
+│   │   ├── order/                # BulkOrder, LineItem, OrderStatus, OrderLifecycleService, OrderController
+│   │   ├── pricing/               # NetTotalCalculation, pricing service
+│   │   ├── client/                # EnterpriseClient, ContractDiscountTerms
+│   │   ├── catalog/               # HardwareCatalogItem
+│   │   ├── identity/              # CallerIdentity filter + argument resolver (X-Client-Id / X-Operator-Id)
+│   │   ├── messaging/             # RabbitMQ topology + OrderIntaken publisher
+│   │   └── web/                   # ProblemDetail exception handling
+│   ├── src/main/resources/
+│   │   ├── application.yml
+│   │   └── db/migration/          # Flyway migrations (schema + seed data)
+│   └── src/test/java/com/compudelivery/orders/
+│       ├── unit/                  # JUnit5/Mockito/AssertJ
+│       └── integration/           # Testcontainers (PostgreSQL, RabbitMQ)
+├── warehouse-api/                 # RESERVED — future feature, not scaffolded by this plan
+└── invoice-api/                   # RESERVED — future feature, not scaffolded by this plan
+
+apps/                              # frontend apps, one per persona/portal
+├── order-portal/                  # React 19 / TypeScript / Vite / Tailwind — THIS FEATURE
+│   ├── src/
+│   │   ├── pages/                 # DashboardPage, OrderDetailPage (create/edit)
+│   │   ├── components/            # LifecycleStepper, CatalogTable, PricingSummary, IdentitySwitcher
+│   │   ├── api/                   # fetch wrapper attaching X-Client-Id / X-Operator-Id
+│   │   └── context/               # IdentityContext (selected demo identity)
+│   └── tests/                     # Vitest + React Testing Library
+├── warehouse-portal/               # RESERVED — future feature, not scaffolded by this plan
+└── invoice-portal/                 # RESERVED — future feature, not scaffolded by this plan
 
 deploy/
-├── docker-compose.yml            # local PostgreSQL 17 + RabbitMQ for backend/frontend dev
-└── helm/                         # Helm chart(s) for backend, frontend, and their k3s deployment
+├── docker-compose.yml             # local PostgreSQL 17 + RabbitMQ for order-api/order-portal dev
+└── helm/
+    ├── order-api/                 # Helm chart for this service's k3s deployment
+    └── order-portal/              # Helm chart for this app's k3s deployment
 ```
 
-**Structure Decision**: Web application (Option 2: frontend + backend), matching
-the user-supplied stack — a single-module Maven Spring Boot service in `backend/`
-(package-by-feature; see `research.md` #9) and a Vite/React SPA in `frontend/`
-(two pages — dashboard, order detail/create — per the reviewed Figma design and
-the 2026-08-17 clarifications). `deploy/` holds the docker-compose file for local
-inner-loop development and the Helm chart for k3s/Rancher Desktop deployment
-(`research.md` #12), keeping deployment concerns out of both application
-directories. No CLI, mobile, or additional service directories are introduced —
-Warehouse and Invoicing remain out of scope per the constitution's domain
-boundary and are not scaffolded here.
+**Structure Decision**: Web monorepo, matching the user-supplied stack and the
+2026-08-19 direction that this repository will eventually house order,
+warehouse, and invoice APIs and frontends as siblings. `services/` holds one
+Maven module per backend API service and `apps/` holds one app per frontend
+portal, each independently buildable/deployable; a root reactor `pom.xml`
+aggregates the Maven modules under `services/` (`research.md` #9). This
+feature implements only `services/order-api/` (package-by-feature internally)
+and `apps/order-portal/` (two pages — dashboard, order detail/create — per
+the reviewed Figma design and the 2026-08-17 clarifications).
+`warehouse-api`/`invoice-api` and their portals are reserved directory names
+only — no code, build files, or CI wiring is created for them here, since
+Warehouse and Invoicing remain out of scope for this feature per the
+constitution's domain boundary; a future feature scaffolds each when it is
+actually built. `deploy/` holds the docker-compose file for this feature's
+local inner-loop development and per-service/per-app Helm charts for k3s
+(`research.md` #12), keeping deployment concerns out of `services/` and
+`apps/`.
 
 ## Complexity Tracking
 

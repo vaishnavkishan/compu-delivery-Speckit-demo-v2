@@ -142,25 +142,39 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
 
 ## 9. Backend module layout
 
-- **Decision**: Single Spring Boot Maven module `backend/` (not a multi-module
-  build). Internal package-by-feature structure (`order`, `catalog`, `client`,
-  `pricing`, `identity`, `messaging`) rather than package-by-layer, since the domain
-  is small and cohesive.
-- **Rationale**: The in-scope domain is one bounded context (Order). Multi-module
-  Maven or multiple services would anticipate the out-of-scope Warehouse/Invoicing
-  services prematurely; those will be separate repos/services when built per the
-  constitution's domain-boundary note.
+- **Decision** (revised 2026-08-19): The repository is a monorepo. A root Maven
+  reactor `pom.xml` aggregates one Maven module per backend API service under
+  `services/`; this feature adds and implements `services/order-api/` only.
+  `services/warehouse-api/` and `services/invoice-api/` are reserved names for
+  future features and are not created (no `pom.xml`, no source, no CI wiring) by
+  this plan. Within `order-api`, internal structure stays package-by-feature
+  (`order`, `catalog`, `client`, `pricing`, `identity`, `messaging`) rather than
+  package-by-layer, since the domain is small and cohesive.
+- **Rationale**: The user has directed that this is a monorepo intended to house
+  order, warehouse, and invoice APIs and frontends as sibling services/apps, so the
+  directory shape (`services/*`, one module per service) should reflect that target
+  topology now, even though only `order-api` is in scope for this feature. This
+  differs from the original decision (superseded below), which avoided any
+  multi-module shape to prevent anticipating out-of-scope work; the monorepo
+  direction makes the *placement convention* itself part of what's being decided,
+  while the constitution's domain boundary still governs what gets *implemented* —
+  no Warehouse/Invoicing code, schema, or tests are added by this feature.
 - **Alternatives considered**: Hexagonal/ports-and-adapters module split
-  (`domain`/`application`/`infrastructure` as separate Maven modules) — rejected as
-  more ceremony than a single-team, single-bounded-context demo service needs; can be
-  introduced later without changing the public API if warranted.
+  (`domain`/`application`/`infrastructure` as separate Maven modules within
+  `order-api`) — rejected as more ceremony than a single-team, single-bounded-context
+  service needs; can be introduced later without changing the public API if
+  warranted. Separate repositories per service (original decision, pre-2026-08-19) —
+  superseded by the user's explicit monorepo direction; would have avoided any
+  coupling between services' build/release cadence but conflicts with the stated
+  goal of one repo housing all three APIs and their frontends.
 
 ## 10. Frontend structure and identity propagation
 
-- **Decision**: React 19 + TypeScript + Vite + Tailwind SPA in `frontend/`, using
-  React Router for the two pages (dashboard, order detail/create) and React Context
-  to hold the currently selected demo identity (client or operator), attached to
-  every API call as the appropriate header via a thin `fetch` wrapper.
+- **Decision**: React 19 + TypeScript + Vite + Tailwind SPA in `apps/order-portal/`
+  (see #9 for the monorepo `apps/` convention), using React Router for the two
+  pages (dashboard, order detail/create) and React Context to hold the currently
+  selected demo identity (client or operator), attached to every API call as the
+  appropriate header via a thin `fetch` wrapper.
 - **Rationale**: Matches the two-page structure decided in Clarifications
   (2026-08-17) and keeps identity-switching a single source of truth consumed by
   both pages.
@@ -185,16 +199,29 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
 
 ## 12. Local/dev environment and deployment path
 
-- **Decision**: `docker-compose.yml` at repo root for local dependency startup
-  (PostgreSQL 17, RabbitMQ with management plugin) used during backend/frontend dev.
-  Multi-stage `Dockerfile`s for `backend/` (Maven build stage → minimal JRE runtime
-  stage) and `frontend/` (Vite build stage → static-file serving stage). A Helm chart
-  under `deploy/helm/` packages the backend Deployment/Service, frontend
-  Deployment/Service, and references to Postgres/RabbitMQ (as chart dependencies or
-  separate manifests) for deployment to k3s via Rancher Desktop.
-- **Rationale**: Directly follows the specified infra stack; docker-compose gives fast
-  inner-loop iteration while Helm/k3s gives a realistic deployment target without
-  requiring a cloud environment for this demo.
+- **Decision** (revised 2026-08-19): `deploy/docker-compose.yml` at repo root for
+  local dependency startup (PostgreSQL 17, RabbitMQ with management plugin) used
+  during `order-api`/`order-portal` dev. Multi-stage `Dockerfile`s live alongside
+  each service/app (`services/order-api/Dockerfile`: Maven build stage → minimal
+  JRE runtime stage; `apps/order-portal/Dockerfile`: Vite build stage →
+  static-file serving stage), so each backend service and frontend app owns its
+  own image build independent of its siblings. Helm charts live under
+  `deploy/helm/`, one subchart per service/app (`deploy/helm/order-api/`,
+  `deploy/helm/order-portal/`), each packaging that component's
+  Deployment/Service; Postgres/RabbitMQ are declared as chart dependencies or
+  separate manifests. Only the `order-api`/`order-portal` charts and
+  `Dockerfile`s are created by this feature — `warehouse-api`/`invoice-api` and
+  their portals get their own Dockerfile and Helm subchart when those future
+  features scaffold those services.
+- **Rationale**: Per-service/per-app Dockerfiles and Helm subcharts keep each
+  monorepo component independently buildable and deployable, matching the
+  monorepo direction (see #9) without coupling one service's release to
+  another's; docker-compose gives fast inner-loop iteration while Helm/k3s gives
+  a realistic deployment target without requiring a cloud environment for this
+  demo.
 - **Alternatives considered**: Skipping docker-compose and requiring k3s for all
-  local dev — rejected as too slow an inner loop for day-to-day backend/frontend
-  iteration.
+  local dev — rejected as too slow an inner loop for day-to-day iteration. A
+  single repo-root Dockerfile/Helm chart building all services together
+  (original decision, pre-2026-08-19) — superseded because it would force
+  warehouse/invoice services to be built and deployed as one unit with order-api
+  once they exist, defeating the point of a services-oriented monorepo.
