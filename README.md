@@ -174,3 +174,22 @@ scope as reserved directories.
 ```
 /speckit-plan this is going to be a mono repo setup and will include order, warehouse and invoice apis and frontend
 ```
+
+### 5. Generate a requirements checklist (`/speckit-checklist`, branch 05-speckit-checklist)
+
+Creates a requirements-quality checklist for the feature. The checklist acts as "unit tests for
+English": it evaluates whether requirements are complete, clear, consistent, measurable, and
+ready for implementation. It does not test application behavior or implementation details.
+
+The generated checklist is appended to
+`specs/001-bulk-hardware-orders/checklists/requirements.md` and covers:
+
+- Requirement completeness and clarity
+- Pricing, lifecycle, concurrency, and data-ownership consistency
+- Acceptance criteria and scenario coverage
+- Edge cases, non-functional requirements, dependencies, and assumptions
+- Ambiguities and conflicts that still need resolution
+
+```
+/speckit-checklist
+```
