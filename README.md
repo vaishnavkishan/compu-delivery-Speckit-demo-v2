@@ -76,7 +76,7 @@ We need a system that accepts bulk hardware orders from enterprise clients, calc
 Turns requirements into `spec.md` — user stories, functional requirements, success criteria.
 
 ```
-/speckit-specify refer below requirements.md and create specification document
+/speckit-specify refer below requirements and create specification document
 
 Requirements:
 We need a system that accepts bulk hardware orders from enterprise clients, calculates their final net totals using pre-negotiated contract discounts, and tracks each order through its lifecycle from intake to final delivery. Clients should be able to view their order history or cancel active requests.
@@ -194,4 +194,23 @@ The generated checklist is appended to
 
 ```
 /speckit-checklist
+```
+
+### 6. Generate the implementation tasks (`/speckit-tasks`, branch 06-speckit-tasks)
+
+Turns the specification and design artifacts into an actionable, dependency-ordered task list
+organized by user story. Each task includes a sequential ID, an optional parallelization marker,
+the applicable story label, and a concrete file path.
+
+The generated task list is written to
+`specs/001-bulk-hardware-orders/tasks.md` and includes:
+
+- Shared setup and foundational infrastructure
+- One independently testable phase for each prioritized user story
+- Backend, frontend, persistence, messaging, and deployment tasks mapped to the plan
+- Dependencies, parallel execution opportunities, and implementation strategy
+- An MVP scope focused on User Story 1 (submit and price a bulk order)
+
+```
+/speckit-tasks
 ```
