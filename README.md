@@ -214,3 +214,32 @@ The generated task list is written to
 ```
 /speckit-tasks
 ```
+
+### 7. Analyse the generated artifacts (`/speckit-analyze`, branch 07-speckit-analyse)
+
+Reviews the specification, implementation plan, and task list before implementation. The analysis
+is strictly read-only and reports inconsistencies, duplications, ambiguities, underspecified items,
+constitution conflicts, and requirements without adequate task coverage.
+
+The report includes:
+
+- Findings with severity, locations, summaries, and recommendations
+- Requirement-to-task coverage, including unmapped tasks
+- Constitution alignment issues
+- Coverage, ambiguity, duplication, and critical-issue metrics
+- Suggested next actions before `/speckit-implement`
+
+#### Prompt used:
+
+```
+/speckit-analyze
+```
+
+#### Follow-up constitution prompt (commit `f75a8e5`):
+
+The analysis identified a lifecycle conflict around Backordered orders. The suggested remediation
+was to update the constitution with the rule that an order can be edited while Backordered.
+
+```
+/speckit-constitution Order can be edited in case of backorder
+```
