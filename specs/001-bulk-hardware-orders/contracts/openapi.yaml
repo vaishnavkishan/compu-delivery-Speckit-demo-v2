@@ -1,0 +1,340 @@
+openapi: 3.0.3
+info:
+  title: Bulk Hardware Order Management API
+  version: "1.0.0"
+  description: >
+    Order intake, pricing, lifecycle, history, and cancellation for enterprise
+    bulk hardware orders. No authentication: callers supply a trusted identity
+    header per FR-001/FR-010/FR-012. This document is the Phase 1 design
+    contract; the running service's authoritative OpenAPI document is
+    generated from the controllers by springdoc-openapi (see research.md #8).
+servers:
+  - url: /api
+
+components:
+  parameters:
+    ClientIdHeader:
+      name: X-Client-Id
+      in: header
+      required: true
+      description: Caller-supplied enterprise client identifier (trusted as-is).
+      schema:
+        type: string
+    OperatorIdHeader:
+      name: X-Operator-Id
+      in: header
+      required: true
+      description: Caller-supplied operator identifier (trusted as-is).
+      schema:
+        type: string
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    ProblemDetail:
+      type: object
+      description: RFC 7807 problem details, as produced by Spring's ProblemDetail.
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string, format: uri }
+
+    HardwareCatalogItem:
+      type: object
+      properties:
+        sku: { type: string }
+        name: { type: string }
+        listPrice: { type: number, format: decimal }
+      required: [sku, name, listPrice]
+
+    DemoIdentity:
+      type: object
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        role: { type: string, enum: [CLIENT, OPERATOR] }
+      required: [id, displayName, role]
+
+    LineItemInput:
+      type: object
+      properties:
+        sku: { type: string }
+        quantity: { type: integer, minimum: 1 }
+      required: [sku, quantity]
+
+    LineItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        sku: { type: string }
+        quantity: { type: integer }
+        unitListPrice: { type: number, format: decimal }
+        lineSubtotal: { type: number, format: decimal }
+      required: [id, sku, quantity, unitListPrice, lineSubtotal]
+
+    OrderStatus:
+      type: string
+      enum: [INTAKE, PROCESSING, BACKORDERED, SHIPPED, FINAL_DELIVERY, CANCELLED]
+
+    LifecycleTransition:
+      type: object
+      properties:
+        fromStatus: { $ref: '#/components/schemas/OrderStatus' }
+        toStatus: { $ref: '#/components/schemas/OrderStatus' }
+        actorType: { type: string, enum: [CLIENT, OPERATOR, SYSTEM] }
+        actorId: { type: string }
+        occurredAt: { type: string, format: date-time }
+      required: [toStatus, actorType, actorId, occurredAt]
+
+    Order:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        clientId: { type: string }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        lineItems:
+          type: array
+          items: { $ref: '#/components/schemas/LineItem' }
+        grossTotal: { type: number, format: decimal }
+        appliedDiscountPercentage: { type: number, format: decimal }
+        netTotal: { type: number, format: decimal }
+        netTotalLocked: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        cancelledAt: { type: string, format: date-time, nullable: true }
+      required: [id, clientId, status, lineItems, grossTotal, appliedDiscountPercentage, netTotal, netTotalLocked, createdAt, updatedAt]
+
+    OrderDetail:
+      allOf:
+        - $ref: '#/components/schemas/Order'
+        - type: object
+          properties:
+            transitions:
+              type: array
+              items: { $ref: '#/components/schemas/LifecycleTransition' }
+
+    OrderSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        netTotal: { type: number, format: decimal }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, status, netTotal, createdAt, updatedAt]
+
+    CreateOrderRequest:
+      type: object
+      properties:
+        lineItems:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/LineItemInput' }
+      required: [lineItems]
+
+    ReplaceLineItemsRequest:
+      type: object
+      properties:
+        lineItems:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/LineItemInput' }
+      required: [lineItems]
+
+    AdvanceStatusRequest:
+      type: object
+      properties:
+        targetStatus: { $ref: '#/components/schemas/OrderStatus' }
+      required: [targetStatus]
+
+paths:
+  /demo-identities:
+    get:
+      summary: List selectable demo client/operator identities (FR-019)
+      operationId: listDemoIdentities
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DemoIdentity' }
+
+  /catalog:
+    get:
+      summary: List fixed Hardware Catalog Items (FR-020)
+      operationId: listCatalogItems
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/HardwareCatalogItem' }
+
+  /orders:
+    post:
+      summary: Submit a bulk hardware order (FR-001–FR-004, FR-014, FR-015)
+      operationId: createOrder
+      parameters:
+        - $ref: '#/components/parameters/ClientIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrderRequest' }
+      responses:
+        '201':
+          description: Order created in Intake status with calculated Net Total.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderDetail' }
+        '400':
+          description: Invalid line items (zero/negative quantity, unknown SKU, empty order).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '422':
+          description: Client's contract discount terms are missing, ambiguous, or expired (FR-004).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+    get:
+      summary: View own order history (FR-008, FR-009)
+      operationId: listOrders
+      parameters:
+        - $ref: '#/components/parameters/ClientIdHeader'
+      responses:
+        '200':
+          description: OK — only the caller's own orders.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OrderSummary' }
+
+  /orders/{orderId}:
+    get:
+      summary: View own order detail (FR-008, FR-009, FR-018)
+      operationId: getOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/ClientIdHeader'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderDetail' }
+        '404':
+          description: >
+            Generic not-found — returned identically whether the order does
+            not exist or belongs to a different client (FR-018).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+
+  /orders/{orderId}/line-items:
+    put:
+      summary: >
+        Replace an order's line items while it is Intake or Processing;
+        recalculates Gross Total and Net Total (FR-025).
+      operationId: replaceOrderLineItems
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/ClientIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReplaceLineItemsRequest' }
+      responses:
+        '200':
+          description: Line items replaced; Gross Total and Net Total recalculated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderDetail' }
+        '400':
+          description: Invalid line items.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '404':
+          description: Generic not-found (FR-018).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '409':
+          description: >
+            Order is no longer editable (past Processing) or was concurrently
+            modified (FR-016, FR-017, FR-025).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+
+  /orders/{orderId}/cancel:
+    post:
+      summary: Cancel an own Active order (FR-010, FR-011, FR-016, FR-018)
+      operationId: cancelOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/ClientIdHeader'
+      responses:
+        '200':
+          description: Order cancelled.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderDetail' }
+        '404':
+          description: Generic not-found (FR-018).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '409':
+          description: >
+            Order already at Final Delivery, already Cancelled, or lost a
+            first-committed-wins race against another change (FR-011, FR-016).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+
+  /orders/{orderId}/status:
+    post:
+      summary: Advance an order's lifecycle status (FR-005, FR-006, FR-012, operator-only)
+      operationId: advanceOrderStatus
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+        - $ref: '#/components/parameters/OperatorIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdvanceStatusRequest' }
+      responses:
+        '200':
+          description: Status advanced; transition recorded (FR-007).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderDetail' }
+        '404':
+          description: Order not found.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '409':
+          description: >
+            Requested transition is not a valid next step (skip, backward
+            move, or transition from a terminal state), or lost a
+            first-committed-wins race (FR-006, FR-016).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }

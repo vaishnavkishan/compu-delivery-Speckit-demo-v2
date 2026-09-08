@@ -1,51 +1,38 @@
 # Overview
 
-This repo is a worked example of [GitHub Speckit](https://github.com/github/spec-kit) and Spec-Driven
-Development (SDD) — a workflow where you write and refine a specification first, and let that
-specification (not an ad-hoc prompt) drive planning, task breakdown, and implementation. It exists
-to answer a simple question: what does it actually look like to build a real feature this way, end
-to end, instead of just reading about the methodology?
+This repo is a worked example of [GitHub Speckit](https://github.com/github/spec-kit) and
+Spec-Driven Development (SDD): write and refine a spec first, then let it drive planning, task
+breakdown, and implementation.
 
-If you're new to this repo, the best way to read it is top to bottom: this README is a
-step-by-step tutorial, and each major step below corresponds to one branch, so you can check the git
-history alongside the writeup to see exactly what each Speckit command generated or changed at
-that stage. Every step also includes the raw slash-command prompt that was run, so you can see the
-actual input, not just the resulting diff.
+Read top to bottom — each step below corresponds to one branch, so you can follow the git history
+alongside the writeup. Every step includes the raw slash-command prompt used.
 
 TLDR;
-Run the github speckit commands in following order to generate code using Spec-driven development
 
 ```
-constitution -> specify -> clarify -> plan -> checklist -> tasks -> analyse -> implement
+constitution -> specify -> clarify -> plan -> checklist (optional) -> tasks -> analyse (optional) -> implement
 ```
 
 ## Prerequisites (branch name 00-speckit-initialize)
 
 ### 1. Install uv
 
-Speckit's CLI (`specify`) runs via [uv](https://docs.astral.sh/uv/), a fast Python package/tool manager.
+Speckit's CLI (`specify`) runs via [uv](https://docs.astral.sh/uv/).
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-Verify the install:
-
-```bash
 uv --version
 ```
 
 ### 2. Install the Specify CLI
 
-Official docs/reference: [github/spec-kit](https://github.com/github/spec-kit)
-
-Install it as a persistent uv tool:
+Docs: [github/spec-kit](https://github.com/github/spec-kit)
 
 ```bash
 uv tool install specify-cli --from git+https://github.com/github/spec-kit.git
 ```
 
-Or run it on demand without installing, via `uvx`:
+Or run on demand without installing:
 
 ```bash
 uvx --from git+https://github.com/github/spec-kit.git specify --help
@@ -53,21 +40,19 @@ uvx --from git+https://github.com/github/spec-kit.git specify --help
 
 ### 3. Initialize Speckit in this repo
 
-Ran `specify init .` in the project root. It scaffolds Spec-Driven Development (SDD) into the current directory and generates:
+Ran `specify init .`. Generates:
 
-- `.specify/` — constitution/memory, templates, scripts, and workflow config for the SDD process
-- `.claude/skills/` — Speckit slash-command skills for Claude (specify, plan, tasks, implement, etc.)
+- `.specify/` — constitution/memory, templates, scripts, workflow config
+- `.claude/skills/` — Speckit slash-command skills for Claude
 
 ## Steps
 
-> The Speckit slash commands below can be run either in the VS Code chat (Claude Code, Copilot, etc.) or via the `specify` CLI directly.
+> Commands below can be run in VS Code chat (Claude Code, Copilot, etc.) or via the `specify` CLI.
 
-### 1. Generate the project constitution (`/speckit-constitution`, branch name 01-speckit-constitution)
+### 1. Generate the project constitution (`/speckit-constitution`, branch 01-speckit-constitution)
 
-Ran the `/speckit-constitution` skill to derive
-`.specify/memory/constitution.md` from requirements — domain language, boundaries, and standards only.
-
-The raw prompt:
+Derives `.specify/memory/constitution.md` from requirements — domain language, boundaries, and
+standards only.
 
 ```
 /speckit-constitution add constitution based on below requirements. Extract high-level domain rules and functional conventions—do not transcribe feature requirements directly.
@@ -86,14 +71,9 @@ We need a system that accepts bulk hardware orders from enterprise clients, calc
 * Strictly exclude raw requirements, user stories, technical architecture, and implementation details.
 ```
 
-### 2. Generate the feature specification (`/speckit-specify`, branch name 02-speckit-specify)
+### 2. Generate the feature specification (`/speckit-specify`, branch 02-speckit-specify)
 
-With the constitution in place, ran the `/speckit-specify` skill to turn
-requirements into `spec.md` — user stories,
-functional requirements, and success criteria, produced from the domain description rather than
-handwritten.
-
-The raw prompt:
+Turns requirements into `spec.md` — user stories, functional requirements, success criteria.
 
 ```
 /speckit-specify refer below requirements.md and create specification document
@@ -102,37 +82,95 @@ Requirements:
 We need a system that accepts bulk hardware orders from enterprise clients, calculates their final net totals using pre-negotiated contract discounts, and tracks each order through its lifecycle from intake to final delivery. Clients should be able to view their order history or cancel active requests.
 ```
 
-### 3. Clarify the feature specification (`/speckit-clarify`, branch name 03-speckit-clarify)
+### 3. Clarify the feature specification (`/speckit-clarify`, branch 03-speckit-clarify)
 
-Ran the `/speckit-clarify` skill against `spec.md` to surface underspecified areas the constitution
-and initial spec didn't resolve — asked up to 5 targeted questions one at a time, then encoded each
-accepted answer directly back into `spec.md` (a new `## Clarifications` section, plus updates to the
-affected Edge Cases, Functional Requirements, Key Entities, and Assumptions).
+Surfaces underspecified areas in `spec.md` — up to 5 targeted questions, then encodes accepted
+answers back into `spec.md` (`## Clarifications`, plus Edge Cases/FRs/Key Entities/Assumptions).
 
-#### The raw prompt run with no argument:
+#### No argument:
 
 ```
 /speckit-clarify
 ```
 
-#### Specific requirement clarification:
+#### Specific requirement:
 
 ```
 /speckit-clarify As this is a sample/demo application, we do not want to implement authorization and authentication currently
 ```
 
-#### Clarification using Figma Designs:
+#### Using Figma designs:
 
-`/speckit-clarify` can also take a Figma design export (HTML/CSS) as an attachment, instead of or alongside free-text guidance. A spec written before any UI exists has nothing to say about interaction details a mockup makes concrete — this project's export showed a second "volume discount" line, a 5-step order-status tracker, and a fixed hardware catalog, none of which were in `spec.md` yet. Clarify diffs the design against the existing requirements and constitution, asks about each real conflict or gap one question at a time, then encodes the accepted answers back into `spec.md` (a new `### User Interface Overview` subsection plus UI-specific Functional Requirements) — so the spec stays the source of truth implementation follows, not the mockup.
+Can take a Figma HTML/CSS export as input — diffs it against the current spec/constitution and
+asks about each real conflict or gap.
 
 ```
 /speckit-clarify analyse the Figma design html specs/001-bulk-hardware-orders/figma-designs/create-order-page.html and add the information about the UI/UX to be same as html when it is implemented
 ```
 
-#### Re-clarifying after the designs change:
+#### Re-clarifying after designs change:
 
-Designs aren't static — new mockups get dropped into `figma-designs/` after the spec was already clarified once. Running `/speckit-clarify` again re-diffs the spec against whatever is currently in that folder, not just against the first export: it caught that new dashboard/detail pages had been added for personas the spec never defined (Invoice Staff, Warehouse Operator), that they quietly reverted an already-decided 5-step lifecycle stepper back to 4 steps, that the single-page layout had been split into a dashboard + detail page, and that order line items were now editable post-submission. Each was surfaced as its own question and the accepted answers were folded back into `spec.md`.
+Re-running against an updated `figma-designs/` folder catches new drift — e.g. it caught new
+undefined personas (Invoice Staff, Warehouse Operator), a reverted lifecycle stepper, a
+single-page-to-two-page layout split, and newly-editable post-submission line items.
 
 ```
 /speckit-clarify verify that the spec is matching the designs from html figma-designs folder
+```
+
+### 4. Generate the implementation plan (`/speckit-plan`, branch 04-speckit-plan)
+
+Fills in Technical Context, runs a Constitution Check gate table, then Phase 0 research and
+Phase 1 design:
+
+- `plan.md` — Technical Context, Constitution Check (all 5 gates PASS), project structure
+- `research.md` — Phase 0 decisions (trusted-header identity, optimistic locking, lifecycle
+  enforcement, contract-terms lookup, etc.)
+- `data-model.md` — Phase 1 entities, relationships, validation rules, state transitions
+- `contracts/openapi.yaml` and `contracts/events.md` — REST API and RabbitMQ event contracts
+- `quickstart.md` — Phase 1 end-to-end validation guide
+
+#### With tech stack:
+
+Tech stack and architecture decisions are too important to leave to an AI agent's guess, so that
+info needs to be passed explicitly in the plan command. Speckit has no built-in command that
+suggests a stack — instead, the current spec is used as context in a normal AI chat to define the
+architecture and stack manually, then supplied to `/speckit-plan` directly:
+
+```
+/speckit-plan Stack:
+- Backend: Java 25, Spring Boot 3.5 (Web, Validation, Data JPA, Actuator, AMQP/RabbitMQ), Maven, Lombok, Flyway, springdoc-openapi
+- DB & Broker: PostgreSQL 17 (@Version optimistic locking), RabbitMQ
+- Frontend: React 19, TypeScript, Vite, Tailwind
+- Testing: JUnit 5, Mockito, AssertJ, Testcontainers | Vitest, RTL
+- Infra: Docker (multi-stage), k3s / Rancher Desktop, Helm -> K8s
+
+In Scope:
+- Order API & DB: Order domain (intake, pricing, status lifecycle, cancellation, contract terms, history). Publishes `OrderIntaken` event to RabbitMQ.
+- Message Queue: RabbitMQ broker.
+- Portal UI: Enterprise Client dashboard + order create/detail views (role-gated shell).
+
+Out of Scope (Future):
+- Warehouse API / DB & Operator UI
+- Invoicing API / DB & Staff UI
+```
+
+#### Revising the plan for a monorepo layout:
+
+`/speckit-plan` can be re-run against an existing plan with new guidance instead of only from
+scratch. Here, a follow-up prompt said the repo should be a monorepo housing order, warehouse,
+and invoice APIs/frontends side by side. Re-running updated the artifacts in place:
+
+- `plan.md` — `services/*` (one Maven module per API — `order-api` implemented,
+  `warehouse-api`/`invoice-api` reserved) and `apps/*` (one app per portal — `order-portal`
+  implemented, others reserved) under a root reactor `pom.xml`, with per-service Helm charts
+- `research.md` — module-layout and deployment-path decisions revised in place, old decision
+  kept visible alongside the new one
+- `quickstart.md` — commands/paths updated to `services/order-api/` and `apps/order-portal/`
+
+Scope is unchanged — only the order feature is implemented; Warehouse/Invoicing stay out of
+scope as reserved directories.
+
+```
+/speckit-plan this is going to be a mono repo setup and will include order, warehouse and invoice apis and frontend
 ```
