@@ -181,6 +181,8 @@ Creates a requirements-quality checklist for the feature. The checklist acts as 
 English": it evaluates whether requirements are complete, clear, consistent, measurable, and
 ready for implementation. It does not test application behavior or implementation details.
 
+Reviewer can open the generated checklist file in an editor. Add missing edge cases, modify vague criteria, or delete irrelevant checks.
+
 The generated checklist is appended to
 `specs/001-bulk-hardware-orders/checklists/requirements.md` and covers:
 
