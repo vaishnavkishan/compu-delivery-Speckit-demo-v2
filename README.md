@@ -76,7 +76,7 @@ We need a system that accepts bulk hardware orders from enterprise clients, calc
 Turns requirements into `spec.md` — user stories, functional requirements, success criteria.
 
 ```
-/speckit-specify refer below requirements.md and create specification document
+/speckit-specify refer below requirements and create specification document
 
 Requirements:
 We need a system that accepts bulk hardware orders from enterprise clients, calculates their final net totals using pre-negotiated contract discounts, and tracks each order through its lifecycle from intake to final delivery. Clients should be able to view their order history or cancel active requests.
