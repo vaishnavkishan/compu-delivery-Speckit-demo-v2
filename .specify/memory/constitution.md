@@ -1,20 +1,19 @@
 <!--
 Sync Impact Report
-- Version change: [TEMPLATE] → 1.0.0 (initial ratification)
-- Modified principles: n/a (first concrete fill of template placeholders)
-- Added sections:
-  - Core Principles: I. Order Lifecycle Integrity, II. Contract-Driven Pricing,
-    III. Client Data Ownership & Access Boundary, IV. Traceability & Auditability,
-    V. Bulk Order as First-Class Unit
-  - Domain Language (glossary of enterprise hardware order domain terms)
-  - Governance & Boundaries (domain scope, data governance, usage rules)
-  - Governance (amendment procedure, versioning policy, compliance review)
-- Removed sections: none (template placeholders only)
+- Version change: 1.0.0 → 1.1.0 (backorder lifecycle and editability rules)
+- Modified principles:
+  - I. Order Lifecycle Integrity — explicitly permits the Backordered → Processing
+    availability transition
+  - IV. Traceability & Auditability — explicitly covers repricing caused by permitted
+    backorder edits
+  - V. Bulk Order as First-Class Unit — permits order line-item edits while Backordered
+- Added sections: none
+- Removed sections: none
 - Deferred / TODO placeholders:
   - TODO(RATIFICATION_DATE): original adoption date not provided by user input; using
     today's date as Last Amended only. Ratification date to be confirmed and backfilled.
-- Templates requiring follow-up: none checked in this run (constitution-only command;
-  dependent templates read this file at runtime and are not modified here).
+- Templates requiring follow-up: none (constitution-only command; dependent templates read
+  this file at runtime and are not modified here).
 -->
 
 # CompuDelivery Constitution
@@ -23,12 +22,14 @@ Sync Impact Report
 
 ### I. Order Lifecycle Integrity
 Every bulk hardware order MUST progress through a single, well-defined Order Lifecycle
-(intake → processing → final delivery, with cancellation as an allowed branch prior to
-final delivery). An order MUST NOT skip lifecycle states, MUST NOT re-enter a prior state
-once it has advanced, and MUST NOT be silently or manually forced into a state outside this
-defined progression. Rationale: enterprise clients rely on a predictable, consistent
-lifecycle to plan procurement and delivery; undefined or inconsistent state transitions
-undermine trust and make order status meaningless.
+(Intake → Processing → Shipped → Final Delivery, with Backordered as an on-hold branch
+from Processing and Cancellation as an allowed branch before Final Delivery). An order
+MUST NOT skip lifecycle states or be silently or manually forced into an undefined state.
+Backordered MUST be allowed to transition back to Processing when stock becomes available;
+this is the sole permitted re-entry exception. Final Delivery and Cancellation are terminal
+states. Rationale: enterprise clients rely on a predictable, consistent lifecycle to plan
+procurement and delivery; explicit exception handling keeps temporary stock holds from
+creating undefined status behavior.
 
 ### II. Contract-Driven Pricing
 Net Total for any order MUST be derived exclusively from the enterprise client's current
@@ -51,17 +52,23 @@ failure, not a feature gap.
 Every lifecycle state transition and every Net Total calculation MUST be attributable to a
 specific point in time and a specific triggering actor or event (client action, contract
 term, or system process). Pricing and lifecycle history MUST be reconstructable after the
-fact and MUST NOT be overwritten in place. Rationale: disputes over price or delivery status
-are inevitable at enterprise scale; without traceability, they cannot be resolved
+fact and MUST NOT be overwritten in place. A permitted line-item edit while an order is
+Backordered MUST create a new Gross Total and Net Total calculation record, including the
+actor, effective contract terms, and timestamp. Rationale: disputes over price or delivery
+status are inevitable at enterprise scale; without traceability, they cannot be resolved
 authoritatively.
 
 ### V. Bulk Order as First-Class Unit
 A Bulk Order (its Line Items, aggregate pricing, and lifecycle state) MUST be treated and
 tracked as a single cohesive unit rather than as a collection of independently managed
 line-level orders. Line Items MAY be itemized for pricing and reporting, but lifecycle
-status, cancellation, and delivery confirmation apply at the order level. Rationale:
-enterprise procurement is negotiated and fulfilled at the order level; fragmenting lifecycle
-tracking per line item creates status ambiguity the client did not ask for.
+status, cancellation, and delivery confirmation apply at the order level. The owning client
+MAY add, remove, or change line items while the order is in Intake, Processing, or
+Backordered; those edits MUST revalidate the order and recalculate its totals using the
+currently effective contract terms. Once the order reaches Shipped, its line items and
+totals MUST be read-only. Rationale: enterprise procurement is negotiated and fulfilled at
+the order level; controlled edits during an unresolved stock hold preserve order
+cohesion without permitting changes after shipment.
 
 ## Domain Language
 
@@ -78,7 +85,8 @@ tracking per line item creates status ambiguity the client did not ask for.
 - **Order Intake**: The stage at which a Bulk Order is received and validated, prior to
   entering active processing.
 - **Order Lifecycle**: The defined, ordered sequence of states an order passes through from
-  Order Intake to Final Delivery.
+  Order Intake to Final Delivery, including the Backordered on-hold branch from Processing
+  and its permitted return to Processing when stock becomes available.
 - **Active Order**: An order in any lifecycle state prior to Final Delivery or Cancellation;
   the set of states eligible for client-initiated Cancellation.
 - **Final Delivery**: The terminal lifecycle state confirming the client has received the
@@ -101,9 +109,12 @@ Client and MUST NOT be exposed to, or applied on behalf of, any other client. Or
 and order-level data are scoped strictly to the owning client (see Principle III).
 
 **Usage rules**: Net Total MUST always be computed from the client's currently effective
-Contract Discount at calculation time (see Principle II). Cancellation is only a valid
-operation on Active Orders (see Principle III); attempts to cancel an order already at
-Final Delivery or already cancelled are invalid operations, not silent no-ops.
+Contract Discount at calculation time (see Principle II). The owning client MAY edit line
+items while an order is in Intake, Processing, or Backordered; each edit MUST recalculate
+Gross Total and Net Total and append an audit record. After Shipped, line items and totals
+MUST NOT be changed. Cancellation is only a valid operation on Active Orders (see Principle
+III); attempts to cancel an order already at Final Delivery or already cancelled are invalid
+operations, not silent no-ops.
 
 ## Governance
 
@@ -126,5 +137,5 @@ sections changed, and set the version per the versioning policy below.
 against these principles before implementation begins; any deviation MUST be called out
 explicitly with a documented justification rather than silently implemented.
 
-**Version**: 1.0.0 | **Ratified**: TODO(RATIFICATION_DATE): original adoption date not
-supplied — confirm with project owner | **Last Amended**: 2026-08-13
+**Version**: 1.1.0 | **Ratified**: TODO(RATIFICATION_DATE): original adoption date not
+supplied — confirm with project owner | **Last Amended**: 2026-09-08
