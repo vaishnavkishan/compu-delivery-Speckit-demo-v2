@@ -7,11 +7,11 @@ without requiring a change to this service.
 
 ## Topology
 
-| Element | Name | Type | Notes |
-|---|---|---|---|
-| Exchange | `order.events` | `topic`, durable | Declared by the order service on startup. |
-| Routing key | `order.intaken` | | Used for the `OrderIntaken` event. |
-| Queue | `order.events.intaken` | durable, bound to `order.events` with routing key `order.intaken` | Declared by the order service so the event is durably captured even before a real consumer exists; a future Warehouse service may bind its own queue to the same routing key instead of consuming this one directly. |
+| Element     | Name                   | Type                                                              | Notes                                                                                                                                                                                                                |
+| ----------- | ---------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exchange    | `order.events`         | `topic`, durable                                                  | Declared by the order service on startup.                                                                                                                                                                            |
+| Routing key | `order.intaken`        |                                                                   | Used for the `OrderIntaken` event.                                                                                                                                                                                   |
+| Queue       | `order.events.intaken` | durable, bound to `order.events` with routing key `order.intaken` | Declared by the order service so the event is durably captured even before a real consumer exists; a future Warehouse service may bind its own queue to the same routing key instead of consuming this one directly. |
 
 ## OrderIntaken
 
@@ -25,29 +25,27 @@ order that failed to persist).
 {
   "eventType": "OrderIntaken",
   "eventId": "b3f1c2b0-...-uuid",
-  "occurredAt": "2026-08-18T15:04:00Z",
+  "occurredAt": "2026-08-18T15:04:00.123Z",
   "orderId": "b3f1c2b0-...-uuid",
   "clientId": "ACME-001",
-  "lineItems": [
-    { "sku": "SKU-1001", "quantity": 25, "unitListPrice": 899.00 }
-  ],
-  "grossTotal": 22475.00,
+  "lineItems": [{ "sku": "SKU-1001", "quantity": 25, "unitListPrice": 899.0 }],
+  "grossTotal": 22475.0,
   "appliedDiscountPercentage": 12.5,
   "netTotal": 19665.63
 }
 ```
 
-| Field | Type | Notes |
-|---|---|---|
-| `eventType` | string | Always `"OrderIntaken"`; future event types share this envelope shape. |
-| `eventId` | uuid | Unique per publish, for consumer dedup. |
-| `occurredAt` | ISO-8601 timestamp | When the order was accepted into Intake. |
-| `orderId` | uuid | The `BulkOrder.id`. |
-| `clientId` | string | Owning client identifier. |
-| `lineItems` | array | SKU, quantity, and unit list price as accepted at intake. |
-| `grossTotal` | decimal | Per FR-002. |
-| `appliedDiscountPercentage` | decimal | The contract discount snapshot applied. |
-| `netTotal` | decimal | Per FR-003. |
+| Field                       | Type                                              | Notes                                                                  |
+| --------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------- |
+| `eventType`                 | string                                            | Always `"OrderIntaken"`; future event types share this envelope shape. |
+| `eventId`                   | uuid                                              | Unique per publish, for consumer dedup.                                |
+| `occurredAt`                | ISO-8601 UTC timestamp with millisecond precision | When the order was accepted and finalized in Intake.                   |
+| `orderId`                   | uuid                                              | The `BulkOrder.id`.                                                    |
+| `clientId`                  | string                                            | Owning client identifier.                                              |
+| `lineItems`                 | array                                             | SKU, quantity, and unit list price as accepted at intake.              |
+| `grossTotal`                | decimal                                           | Per FR-002.                                                            |
+| `appliedDiscountPercentage` | decimal                                           | The contract discount snapshot applied.                                |
+| `netTotal`                  | decimal                                           | Per FR-003.                                                            |
 
 ### Delivery semantics
 
@@ -55,3 +53,7 @@ order that failed to persist).
   future consumer MUST be idempotent, keyed on `eventId` or `orderId`.
 - No retry/redelivery contract is defined for consumers in this feature's scope
   since none exists yet; this is left for the consuming feature to define.
+
+Lifecycle and pricing audit records referenced by the order remain append-only and
+are retained for seven years after the order reaches Final Delivery or Cancelled;
+this event's publication does not replace those records.

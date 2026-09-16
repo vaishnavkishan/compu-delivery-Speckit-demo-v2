@@ -1,8 +1,8 @@
 # Phase 0 Research: Bulk Hardware Order Management
 
 All technology choices were supplied directly by the user (see `plan.md` Technical
-Context), so no NEEDS CLARIFICATION markers remain for stack selection. Research below
-resolves the *implementation-pattern* decisions needed to apply that stack correctly
+Context), so no unresolved stack questions remain. Research below
+resolves the _implementation-pattern_ decisions needed to apply that stack correctly
 against the spec's requirements (FR-001–FR-025) and constitution gates.
 
 ## 1. Caller-supplied identity (no auth)
@@ -56,11 +56,11 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
 ## 4. Order lifecycle transition validation (FR-005, FR-006)
 
 - **Decision**: A single `OrderStatus` enum (`INTAKE, PROCESSING, BACKORDERED,
-  SHIPPED, FINAL_DELIVERY, CANCELLED`) plus a static allowed-transitions map enforced
+SHIPPED, FINAL_DELIVERY, CANCELLED`) plus a static allowed-transitions map enforced
   in a domain service (`OrderLifecycleService`) before any status write:
   `INTAKE→PROCESSING`, `PROCESSING→BACKORDERED`, `BACKORDERED→PROCESSING`,
   `PROCESSING→SHIPPED`, `SHIPPED→FINAL_DELIVERY`, and `{INTAKE, PROCESSING,
-  BACKORDERED, SHIPPED}→CANCELLED` (client-initiated only). Any transition not in the
+BACKORDERED, SHIPPED}→CANCELLED` (client-initiated only). Any transition not in the
   map is rejected with 409/422 and a clear message.
 - **Rationale**: Centralizing the transition table is the simplest way to guarantee
   FR-006 (no skips, no backward moves, no post-terminal changes) except the one
@@ -75,9 +75,12 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
   to `SHIPPED`, at which point it is stamped and further line-item edits/pricing
   recalculation are rejected at the service layer (not just the UI). While
   `INTAKE`/`PROCESSING`, `PUT /api/orders/{id}/line-items` replaces the full line-item
-  set and recomputes Gross Total and Net Total from the client's *currently effective*
+  set and recomputes Gross Total and Net Total from the client's _currently effective_
   contract discount terms, writing a new row to `net_total_calculation` (never
   updating a prior row) per FR-007/Constitution Principle IV.
+  Contract terms are validated before replacing any line items; if they are
+  missing, ambiguous, or expired, the transaction rolls back and preserves the
+  prior line items and totals.
 - **Rationale**: Directly implements the FR-017 lock semantics and keeps
   recalculation append-only and traceable.
 - **Alternatives considered**: Locking at intake (original spec wording) — superseded
@@ -102,6 +105,23 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
   `enterprise_client` with no history — rejected because it can't represent
   "expired" (FR-004) or preserve what was actually applied at calculation time
   (Constitution Principle IV).
+
+## 13. Monetary precision, audit timestamps, and retention (FR-002, FR-003, FR-007)
+
+- **Decision**: Store and serialize all monetary amounts as USD decimal values
+  rounded to exactly two fractional digits. Calculate each line subtotal and Gross
+  Total first, then apply the contract percentage to the Gross Total and round the
+  resulting Net Total to cents using half-up rounding. Store every lifecycle and
+  pricing audit timestamp in UTC with millisecond precision. Retain append-only
+  lifecycle, cancellation, and pricing records for seven years after the order
+  reaches Final Delivery or Cancelled.
+- **Rationale**: A single currency and explicit scale prevent floating-point drift,
+  while millisecond timestamps and a defined completion point make audit retention
+  measurable and reconstructable.
+- **Alternatives considered**: Binary floating-point amounts and second-only
+  timestamps — rejected because they cannot reliably satisfy cent-accurate pricing
+  or the clarified audit precision requirement; indefinite retention — rejected as
+  unspecified operational scope.
 
 ## 7. OrderIntaken event publishing (RabbitMQ)
 
@@ -156,8 +176,8 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
   topology now, even though only `order-api` is in scope for this feature. This
   differs from the original decision (superseded below), which avoided any
   multi-module shape to prevent anticipating out-of-scope work; the monorepo
-  direction makes the *placement convention* itself part of what's being decided,
-  while the constitution's domain boundary still governs what gets *implemented* —
+  direction makes the _placement convention_ itself part of what's being decided,
+  while the constitution's domain boundary still governs what gets _implemented_ —
   no Warehouse/Invoicing code, schema, or tests are added by this feature.
 - **Alternatives considered**: Hexagonal/ports-and-adapters module split
   (`domain`/`application`/`infrastructure` as separate Maven modules within

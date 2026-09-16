@@ -39,7 +39,7 @@
 - Q: When a cancellation or lifecycle update loses a concurrency conflict, what information should the rejection return so the caller can reconcile the order? → A: Return a conflict response with the current lifecycle status and latest update timestamp.
 - Q: How long must lifecycle and pricing audit records be retained, and what timestamp precision is required? → A: Retain for seven years after order completion; use UTC millisecond timestamps.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Submit Bulk Order and Receive Contract-Priced Net Total (Priority: P1)
 
@@ -125,7 +125,7 @@ The enterprise-client-facing portal is composed of two linked pages, per the rev
 - **Dashboard page**: Active Orders & Lifecycle Tracking (one card per Active order, each showing a 5-step lifecycle indicator and a cancel control), the Order History Log (past orders with a status indicator per entry), and an action to start a new order that navigates to the order detail page.
 - **Order detail / create page**: The Bulk Order Catalog (fixed Hardware Catalog Items with quantity entry) for a new or in-progress order, that order's own 5-step lifecycle indicator, and a pricing summary panel — Gross Subtotal, Contract Discount, Freight & Logistics (informational "Waived" only), and Final Net Total, updating live as catalog quantities change — with the order submission control.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -165,7 +165,7 @@ The enterprise-client-facing portal is composed of two linked pages, per the rev
 - **Lifecycle Transition Record**: A timestamped record of an order moving from one lifecycle status to another, including the triggering actor or event; preserved as history rather than overwritten.
 - **Cancellation Record**: A timestamped record capturing that a client cancelled a specific Active Order, including when the cancellation occurred.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

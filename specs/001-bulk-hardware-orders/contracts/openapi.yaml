@@ -46,6 +46,16 @@ components:
         detail: { type: string }
         instance: { type: string, format: uri }
 
+    ConflictProblemDetail:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetail'
+        - type: object
+          description: Conflict response with the state needed for caller reconciliation.
+          properties:
+            currentStatus: { $ref: '#/components/schemas/OrderStatus' }
+            latestUpdatedAt: { type: string, format: date-time, description: UTC timestamp with millisecond precision }
+          required: [currentStatus, latestUpdatedAt]
+
     HardwareCatalogItem:
       type: object
       properties:
@@ -194,7 +204,7 @@ paths:
             schema: { $ref: '#/components/schemas/CreateOrderRequest' }
       responses:
         '201':
-          description: Order created in Intake status with calculated Net Total.
+          description: Valid submission is finalized immediately by creating the order in Intake with calculated USD totals rounded to cents.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OrderDetail' }
@@ -280,6 +290,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '422':
+          description: Current contract discount terms are missing, ambiguous, or expired; prior order data is preserved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
 
   /orders/{orderId}/cancel:
     post:
@@ -305,7 +320,7 @@ paths:
             first-committed-wins race against another change (FR-011, FR-016).
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ProblemDetail' }
+              schema: { $ref: '#/components/schemas/ConflictProblemDetail' }
 
   /orders/{orderId}/status:
     post:
@@ -337,4 +352,4 @@ paths:
             first-committed-wins race (FR-006, FR-016).
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ProblemDetail' }
+              schema: { $ref: '#/components/schemas/ConflictProblemDetail' }

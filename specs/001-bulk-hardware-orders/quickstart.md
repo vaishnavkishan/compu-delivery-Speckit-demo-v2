@@ -45,7 +45,7 @@ curl -s -X POST http://localhost:8080/api/orders \
   -d '{"lineItems":[{"sku":"SKU-1001","quantity":25}]}' | jq
 ```
 
-Expected: HTTP 201, `status: "INTAKE"`, `netTotal` = `grossTotal` reduced by
+Expected: HTTP 201, valid submission is immediately finalized with `status: "INTAKE"`, and `netTotal` = `grossTotal` reduced by
 ACME-001's seeded contract discount percentage (see FR-001–FR-003).
 
 Negative case (FR-004): repeat against a seeded client with expired/missing terms
@@ -53,7 +53,9 @@ and confirm HTTP 422 with a clear reason, no order created.
 
 Edit case (FR-025): `PUT /api/orders/{id}/line-items` while status is `INTAKE` or
 `PROCESSING`; confirm `grossTotal`/`netTotal` change and a new `NetTotalCalculation`
-row is implied by the updated `OrderDetail` response.
+row is implied by the updated `OrderDetail` response. Repeat with a client whose
+terms are missing, ambiguous, or expired and confirm HTTP 422, unchanged prior
+line items/totals, and a clear contract-terms message.
 
 ## 4. Validate User Story 2 — order history scoped per client
 
@@ -96,14 +98,16 @@ transitions succeed (FR-006 exception case).
 Fire a cancel request and a `targetStatus: FINAL_DELIVERY` advance request for the
 same order concurrently (e.g. two parallel `curl` calls); confirm exactly one
 succeeds (HTTP 200) and the other returns HTTP 409 with a message indicating the
-order's state has changed.
+order's state has changed plus `currentStatus` and `latestUpdatedAt` fields.
 
 ## 8. Validate the OrderIntaken event
 
 With the RabbitMQ management UI (`http://localhost:15672`, default guest/guest) or
 `rabbitmqadmin`, confirm a message matching `contracts/events.md`'s `OrderIntaken`
-schema was published to the `order.events` exchange with routing key
-`order.intaken` for each order created in step 3.
+schema, including a UTC millisecond `occurredAt`, was published to the `order.events`
+exchange with routing key `order.intaken` for each order created in step 3. Confirm
+audit records remain append-only and are retained for seven years after Final
+Delivery or Cancelled.
 
 ## 9. Automated verification (run during implementation, not by this plan)
 

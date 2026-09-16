@@ -1,6 +1,6 @@
 # Implementation Plan: Bulk Hardware Order Management
 
-**Branch**: `001-bulk-hardware-orders` | **Date**: 2026-08-18 | **Spec**: [spec.md](./spec.md)
+**Branch**: `001-bulk-hardware-orders` | **Date**: 2026-09-16 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/001-bulk-hardware-orders/spec.md`
 
@@ -10,13 +10,15 @@
 
 Enterprise clients submit bulk hardware orders (SKU + quantity line items); the
 system validates the order against a fixed catalog, computes Gross Total and, from
-the client's currently effective pre-negotiated contract discount, a Net Total,
-blocking finalization if terms are missing/ambiguous/expired. Accepted orders are
-tracked through a defined lifecycle (Intake → Processing ⇄ Backordered → Shipped →
-Final Delivery, with Cancellation as a branch before Final Delivery), with every
-transition and every Net Total calculation recorded as append-only history. Clients
-view only their own order history/detail and may cancel or edit (while still
-Intake/Processing) their own orders; operators alone advance lifecycle status.
+the client's currently effective pre-negotiated contract discount, a USD Net Total
+rounded to cents, blocking finalization if terms are missing/ambiguous/expired.
+A valid submission is finalized immediately by creating the order in Intake.
+Accepted orders are tracked through a defined lifecycle (Intake → Processing ⇄
+Backordered → Shipped → Final Delivery, with Cancellation as a branch before Final
+Delivery), with every transition and every Net Total calculation recorded as
+append-only history. Clients view only their own order history/detail and may cancel
+or edit (while still Intake/Processing) their own orders; operators alone advance
+lifecycle status.
 Concurrent conflicting writes on one order resolve first-committed-wins via
 optimistic locking. A Spring Boot 3.5/Java 25 REST API backed by PostgreSQL 17
 implements the domain and publishes an `OrderIntaken` event to RabbitMQ on order
@@ -60,8 +62,11 @@ without degradation in calculation accuracy or response time (SC-007)
 caller-supplied, trusted `X-Client-Id` or `X-Operator-Id` header (see
 `research.md` #1); concurrent conflicting order mutations resolved
 first-committed-wins via optimistic locking, loser rejected with HTTP 409
-(FR-016); Net Total locked (read-only) once an order reaches Shipped (FR-017);
-single currency, no split/partial delivery (Assumptions)
+(FR-016) with the current status and latest update timestamp in the conflict
+response; Net Total locked (read-only) once an order reaches Shipped (FR-017);
+single currency, USD amounts rounded to cents; audit timestamps are UTC with
+millisecond precision and audit records are retained for seven years after the
+order reaches Final Delivery or Cancelled (FR-007, Assumptions)
 
 **Scale/Scope**: Demo/reference scale — a small fixed set of seeded enterprise
 clients and hardware catalog items (~10–20 SKUs matching the Figma catalog); 4
@@ -71,15 +76,15 @@ transitions
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Principle | Gate | Design mechanism | Status |
-|---|---|---|---|
-| I. Order Lifecycle Integrity | Order MUST progress through a single defined lifecycle; no skips, no re-entry, no silent forcing | `OrderStatus` enum + centralized allowed-transitions map enforced by `OrderLifecycleService` before every status write (`data-model.md` State Transitions; `research.md` #4) | PASS |
-| II. Contract-Driven Pricing | Net Total MUST derive exclusively from current contract terms; missing/ambiguous/expired terms block finalization, never a fallback discount | `ContractDiscountTerms` time-bounded lookup at intake and at each edit; zero or >1 matching row blocks the order (FR-004; `research.md` #6) | PASS |
-| III. Client Data Ownership & Access Boundary | Client sees/cancels only its own orders; cancellation only while Active | Every client-facing repository query filters by `client_id` from the trusted header at the data-access layer, not just the response layer; cancel endpoint checks Active status before writing (`data-model.md` Cross-Entity Invariants) | PASS |
-| IV. Traceability & Auditability | Every transition and every Net Total calculation attributable to a time + actor; history not overwritten | Append-only `LifecycleTransition` and `NetTotalCalculation` tables, insert-only (`data-model.md`) | PASS |
-| V. Bulk Order as First-Class Unit | Lifecycle status, cancellation, delivery confirmation apply at order level, not line-item level | `status`, `net_total_locked_at`, `cancelled_at` live on `BulkOrder` only; `LineItem` carries no independent lifecycle fields (`data-model.md`) | PASS |
+| Principle                                    | Gate                                                                                                                                         | Design mechanism                                                                                                                                                                                                                         | Status |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| I. Order Lifecycle Integrity                 | Order MUST progress through a single defined lifecycle; no skips, no re-entry, no silent forcing                                             | `OrderStatus` enum + centralized allowed-transitions map enforced by `OrderLifecycleService` before every status write (`data-model.md` State Transitions; `research.md` #4)                                                             | PASS   |
+| II. Contract-Driven Pricing                  | Net Total MUST derive exclusively from current contract terms; missing/ambiguous/expired terms block finalization, never a fallback discount | `ContractDiscountTerms` time-bounded lookup at intake and at each edit; zero or >1 matching row blocks the order (FR-004; `research.md` #6)                                                                                              | PASS   |
+| III. Client Data Ownership & Access Boundary | Client sees/cancels only its own orders; cancellation only while Active                                                                      | Every client-facing repository query filters by `client_id` from the trusted header at the data-access layer, not just the response layer; cancel endpoint checks Active status before writing (`data-model.md` Cross-Entity Invariants) | PASS   |
+| IV. Traceability & Auditability              | Every transition and every Net Total calculation attributable to a time + actor; history not overwritten                                     | Append-only `LifecycleTransition` and `NetTotalCalculation` tables, insert-only (`data-model.md`)                                                                                                                                        | PASS   |
+| V. Bulk Order as First-Class Unit            | Lifecycle status, cancellation, delivery confirmation apply at order level, not line-item level                                              | `status`, `net_total_locked_at`, `cancelled_at` live on `BulkOrder` only; `LineItem` carries no independent lifecycle fields (`data-model.md`)                                                                                           | PASS   |
 
 No violations identified; **Complexity Tracking** is not needed for this plan.
 
@@ -176,4 +181,4 @@ local inner-loop development and per-service/per-app Helm charts for k3s
 
 ## Complexity Tracking
 
-*No Constitution Check violations — this section is not applicable.*
+_No Constitution Check violations — this section is not applicable._

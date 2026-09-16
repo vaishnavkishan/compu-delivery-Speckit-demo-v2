@@ -243,3 +243,13 @@ was to update the constitution with the rule that an order can be edited while B
 ```
 /speckit-constitution Order can be edited in case of backorder
 ```
+
+#### Follow-up clarification prompt:
+
+After applying the constitution remediation, run clarification again to resolve the
+remaining high-impact ambiguities identified by the analysis and update the specification
+and requirements checklist.
+
+```
+/speckit-clarify
+```
