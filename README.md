@@ -99,7 +99,7 @@ answers back into `spec.md` (`## Clarifications`, plus Edge Cases/FRs/Key Entiti
 /speckit-clarify As this is a sample/demo application, we do not want to implement authorization and authentication currently
 ```
 
-#### Using Figma designs:
+#### Clarification using Figma Designs (commit `edbb8bf`):
 
 Can take a Figma HTML/CSS export as input — diffs it against the current spec/constitution and
 asks about each real conflict or gap.
