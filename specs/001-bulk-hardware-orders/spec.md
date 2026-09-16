@@ -31,6 +31,14 @@
 - Q: enterprise-user-dashboard.html and enterprise-user-detail-page.html split the original single-page portal into a dashboard page (active orders + history) and a separate order detail/create page (catalog + pricing panel). Should the spec adopt this two-page structure? → A: Yes — the UI Interface Overview now describes a dashboard page and a linked order detail/create page in place of the original single page.
 - Q: enterprise-user-detail-page.html lets a client edit an already-submitted order's line items while it is in Intake or Processing status ("View / Edit Order"), which the spec previously did not describe and which appeared to conflict with FR-017's "locked at intake" wording. Should this editing capability be part of the spec? → A: Yes — clients MAY edit Line Items while an order is in Intake or Processing (new FR-025), with Gross Total and Net Total recalculated on each edit using currently effective contract terms; FR-017 is revised so the Net Total lock now takes effect once the order advances beyond Processing (upon entering Shipped) rather than at intake.
 
+### Session 2026-09-16
+
+- Q: When a client edits an order in Intake or Processing and the current contract discount is missing, ambiguous, or expired, what should happen? → A: Reject the edit; preserve the prior line items and totals; explain that valid contract terms are required.
+- Q: What currency and monetary rounding rule should all Gross Total and Net Total calculations use? → A: USD, rounded to cents.
+- Q: Should a valid order be considered finalized when it is created in Intake, or should finalization be a separate later operator action? → A: A valid submission is finalized immediately and creates the order in Intake.
+- Q: When a cancellation or lifecycle update loses a concurrency conflict, what information should the rejection return so the caller can reconcile the order? → A: Return a conflict response with the current lifecycle status and latest update timestamp.
+- Q: How long must lifecycle and pricing audit records be retained, and what timestamp precision is required? → A: Retain for seven years after order completion; use UTC millisecond timestamps.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Submit Bulk Order and Receive Contract-Priced Net Total (Priority: P1)
@@ -44,7 +52,7 @@ An enterprise client submits a bulk hardware order consisting of one or more har
 **Acceptance Scenarios**:
 
 1. **Given** an enterprise client with active, current contract discount terms, **When** the client submits a bulk order with valid hardware line items, **Then** the system calculates the Gross Total, applies the contract discount, returns the Net Total, and creates the order in Intake status.
-2. **Given** an enterprise client whose contract discount terms are missing or expired, **When** the client submits a bulk order, **Then** the system blocks the order from being finalized and clearly indicates the reason instead of applying a default or estimated discount.
+2. **Given** an enterprise client whose contract discount terms are missing or expired, **When** the client submits a bulk order, **Then** the system rejects the submission, does not create an accepted Intake order, and clearly indicates the reason instead of applying a default or estimated discount.
 3. **Given** a submitted bulk order with multiple line items, **When** the Net Total is calculated, **Then** the calculation is based on the order as a whole and is traceable to the specific contract discount terms and point in time used.
 4. **Given** an enterprise client's order in Intake or Processing status, **When** the client edits the order's line items (adds, removes, or changes a quantity), **Then** the system recalculates the Gross Total and Net Total using the client's current contract discount terms and records the recalculation.
 
@@ -121,13 +129,13 @@ The enterprise-client-facing portal is composed of two linked pages, per the rev
 
 ### Functional Requirements
 
-- **FR-001**: System MUST allow an enterprise client, identified via a caller-supplied client identifier (trusted as-is; not verified by login or credentials), to submit a bulk hardware order consisting of one or more line items, each specifying a hardware SKU and quantity.
-- **FR-002**: System MUST calculate a Gross Total for each submitted order as the sum of its line items' list prices and quantities.
-- **FR-003**: System MUST calculate the Net Total for each order by applying the submitting client's current, pre-negotiated contract discount terms to the Gross Total, and MUST NOT apply any manually overridden, estimated, or generic discount in place of the client's actual contract terms.
-- **FR-004**: System MUST block an order from being finalized, and MUST clearly communicate the reason, when the submitting client's contract discount terms are missing, ambiguous, or expired at the time of submission.
+- **FR-001**: System MUST allow an enterprise client, identified via a caller-supplied client identifier (trusted as-is; not verified by login or credentials), to submit a bulk hardware order consisting of one or more line items, each specifying a hardware SKU and quantity; when submission is valid, the system MUST finalize it immediately and create the order in Intake status.
+- **FR-002**: System MUST calculate a Gross Total in USD for each submitted order as the sum of its line items' list prices and quantities, rounded to the nearest cent.
+- **FR-003**: System MUST calculate the Net Total in USD for each order by applying the submitting client's current, pre-negotiated contract discount terms to the Gross Total and rounding the result to the nearest cent, and MUST NOT apply any manually overridden, estimated, or generic discount in place of the client's actual contract terms.
+- **FR-004**: System MUST reject submission, MUST NOT create an accepted Intake order, and MUST clearly communicate the reason when the submitting client's contract discount terms are missing, ambiguous, or expired at the time of submission.
 - **FR-005**: System MUST assign every accepted order a single, well-defined lifecycle status drawn from an ordered set of stages (Intake, Processing, Shipped, Final Delivery), with Cancellation as an allowed branch at any point prior to Final Delivery, and with Backordered as an allowed on-hold branch from Processing (used when hardware isn't immediately available).
 - **FR-006**: System MUST prevent an order from skipping a defined lifecycle stage, moving backward to a prior stage, or changing status after it has reached a terminal state (Final Delivery or Cancelled), except that an order in Backordered MAY move back to Processing once stock becomes available — this specific reversal is not considered a backward-stage violation.
-- **FR-007**: System MUST record, for every lifecycle state transition and every Net Total calculation, the point in time it occurred and the actor or event that triggered it, and MUST preserve this history rather than overwriting it.
+- **FR-007**: System MUST record, for every lifecycle state transition and every Net Total calculation, the UTC timestamp to millisecond precision and the actor or event that triggered it, and MUST preserve this history in append-only form for seven years after order completion rather than overwriting it.
 - **FR-008**: System MUST allow an enterprise client, identified via a caller-supplied client identifier (trusted as-is; not verified by login or credentials), to view a history of their own bulk orders, including each order's line items, Gross Total, Net Total, current lifecycle status, and relevant dates.
 - **FR-009**: System MUST restrict an enterprise client's order history and order detail views to that client's own orders only, and MUST NOT expose another client's orders, pricing, or contract discount terms.
 - **FR-010**: System MUST allow an enterprise client, identified via a caller-supplied client identifier (trusted as-is; not verified by login or credentials), to cancel one of their own orders only while that order is Active (has not reached Final Delivery and has not already been cancelled).
@@ -136,7 +144,7 @@ The enterprise-client-facing portal is composed of two linked pages, per the rev
 - **FR-013**: System MUST treat Bulk Order lifecycle status, cancellation, and delivery confirmation as properties of the order as a whole, not of individual line items.
 - **FR-014**: System MUST reject a submitted order containing a line item with a zero or negative quantity, or a hardware SKU the system does not recognize.
 - **FR-015**: System MUST reject a submitted order that contains zero line items.
-- **FR-016**: System MUST resolve concurrent conflicting requests on the same order (e.g., a cancellation request and an operator's Final Delivery advancement) using first-committed-wins semantics: whichever request commits to persistent storage first is applied, and the system MUST reject the other with a clear message indicating the order's state has changed.
+- **FR-016**: System MUST resolve concurrent conflicting requests on the same order (e.g., a cancellation request and an operator's Final Delivery advancement) using first-committed-wins semantics: whichever request commits to persistent storage first is applied, and the system MUST reject the other with a conflict response that indicates the order's state has changed and includes the current lifecycle status and latest update timestamp.
 - **FR-017**: System MUST lock an order's Net Total once the order advances beyond Processing (i.e., upon entering Shipped) and MUST NOT recalculate it after that point due to subsequent changes to the client's contract discount terms; for an order still in Intake or Processing, Net Total is only recalculated as a result of an explicit line item edit (see FR-025), never automatically due to a contract term change alone.
 - **FR-018**: System MUST return an identical generic "not found" response, for both view and cancellation requests, whether the requested order ID does not exist or belongs to a different client, so that a client cannot distinguish nonexistence from another client's ownership.
 - **FR-019**: System MUST provide a demo identity switcher that lets the user select the active client or operator identifier used for subsequent requests, in lieu of a login flow.
@@ -145,7 +153,7 @@ The enterprise-client-facing portal is composed of two linked pages, per the rev
 - **FR-022**: System MUST display, for each of the client's Active Orders, a 5-step lifecycle indicator (Intake, Processing, Backordered, Shipped, Final Delivery) reflecting completed, current, and upcoming steps, alongside a cancel control that requires explicit confirmation before submitting the cancellation.
 - **FR-023**: System MUST display each Order History entry with a visually distinct status indicator matching the order's lifecycle status (Intake, Processing, Backordered, Shipped, Final Delivery, or Cancelled).
 - **FR-024**: System MUST block submission of a new Bulk Order at the UI layer when total quantity across all catalog line items is zero, and MUST present a clear message instead of submitting an empty order (reinforces FR-015).
-- **FR-025**: System MUST allow an enterprise client to edit the Line Items (add, remove, or change quantity) of their own Bulk Order only while that order is in Intake or Processing status, and MUST recalculate the Gross Total and Net Total (per FR-002 and FR-003, using currently effective contract discount terms) on each such edit, recording the recalculation per FR-007. Once an order advances beyond Processing, its Line Items and totals become read-only (see FR-017).
+- **FR-025**: System MUST allow an enterprise client to edit the Line Items (add, remove, or change quantity) of their own Bulk Order only while that order is in Intake or Processing status, and MUST recalculate the Gross Total and Net Total (per FR-002 and FR-003, using currently effective contract discount terms) on each such edit, recording the recalculation per FR-007. If the current contract discount terms are missing, ambiguous, or expired, the system MUST reject the edit, preserve the prior line items and totals, and clearly explain that valid contract terms are required. Once an order advances beyond Processing, its Line Items and totals become read-only (see FR-017).
 
 ### Key Entities
 
@@ -165,7 +173,7 @@ The enterprise-client-facing portal is composed of two linked pages, per the rev
 - **SC-002**: 100% of Net Total calculations reflect the client's currently effective contract discount terms at the moment of calculation, with zero instances of manual or default pricing overrides.
 - **SC-003**: An enterprise client can locate the current status of any of their own orders, and no other client's orders, in under 3 clicks/steps from entering their client identifier.
 - **SC-004**: 100% of cancellation attempts on orders that are not Active (already delivered or already cancelled) are rejected, with zero successful erroneous cancellations.
-- **SC-005**: 100% of order lifecycle transitions are recorded with a reconstructable timestamp and triggering actor, enabling full after-the-fact audit of any order's history.
+- **SC-005**: 100% of order lifecycle transitions and Net Total calculations are recorded with reconstructable UTC millisecond timestamps and triggering actors or events, remain available for seven years after order completion, and enable full after-the-fact audit of any order's history.
 - **SC-006**: Zero instances of one enterprise client viewing, cancelling, or otherwise accessing another client's order, pricing, or contract discount data.
 - **SC-007**: The system supports at least 500 bulk order submissions per day across all enterprise clients without degradation in Net Total calculation accuracy or response time.
 
@@ -174,7 +182,7 @@ The enterprise-client-facing portal is composed of two linked pages, per the rev
 - The defined lifecycle stages are Intake, Processing, Shipped, and Final Delivery, with Cancellation available as a branch at any point before Final Delivery and Backordered available as an on-hold branch from Processing (see Clarifications, Session 2026-08-13).
 - Lifecycle progression (advancing an order from one stage to the next) is performed by internal operations staff (identified via a caller-supplied operator identifier) rather than being fully automated or client-triggered, consistent with typical enterprise fulfillment workflows.
 - Each Enterprise Client is represented as a single account identifier that may be used by multiple individual users; all such users share the same order visibility scoped to that client's own data, since individual users are not separately identified in this demo.
-- Pricing and order amounts are handled in a single currency; multi-currency support is out of scope for this feature.
+- Pricing and order amounts are handled in USD and rounded to the nearest cent; multi-currency support is out of scope for this feature.
 - "Bulk" refers to any order containing one or more hardware line items submitted by an enterprise client under contract; no separate minimum-quantity threshold is enforced to qualify an order as "bulk."
 - Split or partial deliveries are out of scope; an order reaches Final Delivery as a single terminal event for the order as a whole, consistent with treating the Bulk Order as a first-class unit.
 - Enterprise clients are already onboarded with contract discount terms established through a process outside this feature's scope; this feature consumes those terms but does not define how contracts are negotiated or entered into the system.
