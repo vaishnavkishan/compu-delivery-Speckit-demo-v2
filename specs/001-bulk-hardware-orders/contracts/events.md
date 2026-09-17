@@ -19,6 +19,11 @@ Published exactly once per successfully created order, after the creating
 transaction commits (see research.md #7 — `AFTER_COMMIT`, never published for an
 order that failed to persist).
 
+Unchanged by constitution v2.0.0: the envelope carries no lifecycle status, so
+removing the Backordered state does not alter this payload. No event is published
+for lifecycle advancement or cancellation within this feature's scope, so no event
+schema references the removed state.
+
 ### Payload (JSON)
 
 ```json

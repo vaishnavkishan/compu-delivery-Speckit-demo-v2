@@ -1,13 +1,23 @@
 openapi: 3.0.3
 info:
   title: Bulk Hardware Order Management API
-  version: "1.0.0"
+  version: "2.0.0"
   description: >
     Order intake, pricing, lifecycle, history, and cancellation for enterprise
     bulk hardware orders. No authentication: callers supply a trusted identity
     header per FR-001/FR-010/FR-012. This document is the Phase 1 design
     contract; the running service's authoritative OpenAPI document is
     generated from the controllers by springdoc-openapi (see research.md #8).
+
+    Revised 2026-09-17 for constitution v2.0.0: OrderStatus holds exactly the four
+    lifecycle states plus CANCELLED (no BACKORDERED); cancellation is confined to
+    the Cancellation Window (Intake or Processing) and rejected once Shipped; read
+    endpoints accept either a client or an operator identity, with operator
+    identities intentionally unscoped across clients (FR-027).
+
+    Contract version bumped to 2.0.0 because removing the BACKORDERED enum member
+    and narrowing cancellation are breaking changes for any consumer of the prior
+    document.
 servers:
   - url: /api
 
@@ -25,6 +35,26 @@ components:
       in: header
       required: true
       description: Caller-supplied operator identifier (trusted as-is).
+      schema:
+        type: string
+    OptionalClientIdHeader:
+      name: X-Client-Id
+      in: header
+      required: false
+      description: >
+        Caller-supplied enterprise client identifier (trusted as-is). Supply
+        exactly one of X-Client-Id or X-Operator-Id; supplying both, or neither,
+        is rejected with 400.
+      schema:
+        type: string
+    OptionalOperatorIdHeader:
+      name: X-Operator-Id
+      in: header
+      required: false
+      description: >
+        Caller-supplied operator identifier (trusted as-is). Supply exactly one of
+        X-Client-Id or X-Operator-Id; supplying both, or neither, is rejected with
+        400. An operator identity is not scoped to one client (FR-027).
       schema:
         type: string
     OrderId:
@@ -81,7 +111,12 @@ components:
 
     OrderStatus:
       type: string
-      enum: [INTAKE, PROCESSING, BACKORDERED, SHIPPED, FINAL_DELIVERY, CANCELLED]
+      description: >
+        The four ordered lifecycle states (FR-005) plus the terminal CANCELLED
+        branch. There is deliberately no on-hold/backordered member: an order
+        awaiting hardware availability remains PROCESSING (constitution v2.0.0
+        Principle I).
+      enum: [INTAKE, PROCESSING, SHIPPED, FINAL_DELIVERY, CANCELLED]
 
     LifecycleTransition:
       type: object
@@ -97,7 +132,12 @@ components:
       type: object
       properties:
         id: { type: string, format: uuid }
-        clientId: { type: string }
+        clientId:
+          type: string
+          description: Owning client. Present for operator callers so each order can be attributed on screen (FR-027).
+        clientDisplayName:
+          type: string
+          description: Owning client's display name, for operator-mode order attribution (FR-027).
         status: { $ref: '#/components/schemas/OrderStatus' }
         lineItems:
           type: array
@@ -105,11 +145,35 @@ components:
         grossTotal: { type: number, format: decimal }
         appliedDiscountPercentage: { type: number, format: decimal }
         netTotal: { type: number, format: decimal }
-        netTotalLocked: { type: boolean }
+        netTotalLocked:
+          type: boolean
+          description: True once the order has entered SHIPPED; line items and totals are then read-only (FR-017, FR-025).
+        active:
+          type: boolean
+          description: >
+            Derived from status — true for INTAKE, PROCESSING, SHIPPED. Drives the
+            dashboard's Active Orders vs Order History partition; the two sections
+            are exact complements so no order appears twice (FR-023).
+        cancellable:
+          type: boolean
+          description: >
+            Derived from status — true only within the Cancellation Window (INTAKE
+            or PROCESSING). The UI enables its cancel control iff this is true and
+            otherwise shows it disabled with an inline explanation (FR-022); the
+            server applies the same predicate (FR-010, research.md #13). A SHIPPED
+            order is active but not cancellable.
+        nextStatus:
+          allOf:
+            - $ref: '#/components/schemas/OrderStatus'
+          nullable: true
+          description: >
+            The single stage this order may advance to next, or null at a terminal
+            state. Labels the operator's advance control and is the only value
+            /status accepts (FR-006, FR-026).
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         cancelledAt: { type: string, format: date-time, nullable: true }
-      required: [id, clientId, status, lineItems, grossTotal, appliedDiscountPercentage, netTotal, netTotalLocked, createdAt, updatedAt]
+      required: [id, clientId, status, lineItems, grossTotal, appliedDiscountPercentage, netTotal, netTotalLocked, active, cancellable, createdAt, updatedAt]
 
     OrderDetail:
       allOf:
@@ -124,11 +188,26 @@ components:
       type: object
       properties:
         id: { type: string, format: uuid }
+        clientId:
+          type: string
+          description: Owning client; used for operator-mode attribution (FR-027).
+        clientDisplayName: { type: string }
         status: { $ref: '#/components/schemas/OrderStatus' }
         netTotal: { type: number, format: decimal }
+        active:
+          type: boolean
+          description: Derived; partitions Active Orders from Order History (FR-023).
+        cancellable:
+          type: boolean
+          description: Derived; true only inside the Cancellation Window (FR-010, FR-022).
+        nextStatus:
+          allOf:
+            - $ref: '#/components/schemas/OrderStatus'
+          nullable: true
+          description: Next advanceable stage, or null at a terminal state (FR-026).
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-      required: [id, status, netTotal, createdAt, updatedAt]
+      required: [id, clientId, status, netTotal, active, cancellable, createdAt, updatedAt]
 
     CreateOrderRequest:
       type: object
@@ -151,7 +230,13 @@ components:
     AdvanceStatusRequest:
       type: object
       properties:
-        targetStatus: { $ref: '#/components/schemas/OrderStatus' }
+        targetStatus:
+          allOf:
+            - $ref: '#/components/schemas/OrderStatus'
+          description: >
+            MUST equal the order's current nextStatus. Sent explicitly (rather than
+            inferred server-side) so a stale client view cannot advance an order the
+            operator did not mean to; a mismatch is rejected with 409 (FR-006).
       required: [targetStatus]
 
 paths:
@@ -185,6 +270,9 @@ paths:
     post:
       summary: Submit a bulk hardware order (FR-001–FR-004, FR-014, FR-015)
       operationId: createOrder
+      description: >
+        Client-only. Operators do not create orders (FR-026), so this endpoint
+        accepts X-Client-Id exclusively.
       parameters:
         - $ref: '#/components/parameters/ClientIdHeader'
       requestBody:
@@ -209,36 +297,64 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
     get:
-      summary: View own order history (FR-008, FR-009)
+      summary: List orders visible to the calling identity (FR-008, FR-009, FR-027)
       operationId: listOrders
+      description: >
+        With X-Client-Id, returns only that client's own orders (FR-009). With
+        X-Operator-Id, returns orders across all enterprise clients, each carrying
+        its owning clientId/clientDisplayName for on-screen attribution (FR-027);
+        operators are internal staff outside the per-client boundary and are
+        excluded from SC-006.
+
+        Returns Active and completed orders in one list; the caller partitions them
+        on the derived `active` flag into Active Orders and the Order History Log,
+        which are exact complements (FR-023).
       parameters:
-        - $ref: '#/components/parameters/ClientIdHeader'
+        - $ref: '#/components/parameters/OptionalClientIdHeader'
+        - $ref: '#/components/parameters/OptionalOperatorIdHeader'
       responses:
         '200':
-          description: OK — only the caller's own orders.
+          description: OK — the caller's own orders for a client identity, all clients' orders for an operator identity.
           content:
             application/json:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/OrderSummary' }
+        '400':
+          description: Neither identity header supplied, both supplied, or the identifier is unknown.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
 
   /orders/{orderId}:
     get:
-      summary: View own order detail (FR-008, FR-009, FR-018)
+      summary: View order detail (FR-008, FR-009, FR-018, FR-027)
       operationId: getOrder
+      description: >
+        With X-Client-Id, resolves only within the caller's own orders — a
+        nonexistent order and another client's order are indistinguishable
+        (FR-018). With X-Operator-Id, resolves across all clients (FR-027), which
+        is what lets an operator advance an order from the detail page (FR-026).
       parameters:
         - $ref: '#/components/parameters/OrderId'
-        - $ref: '#/components/parameters/ClientIdHeader'
+        - $ref: '#/components/parameters/OptionalClientIdHeader'
+        - $ref: '#/components/parameters/OptionalOperatorIdHeader'
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OrderDetail' }
+        '400':
+          description: Neither identity header supplied, both supplied, or the identifier is unknown.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
         '404':
           description: >
-            Generic not-found — returned identically whether the order does
-            not exist or belongs to a different client (FR-018).
+            Generic not-found — for a client identity, returned identically
+            whether the order does not exist or belongs to a different client
+            (FR-018).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
@@ -249,6 +365,8 @@ paths:
         Replace an order's line items while it is Intake or Processing;
         recalculates Gross Total and Net Total (FR-025).
       operationId: replaceOrderLineItems
+      description: >
+        Client-only — operators are not offered line-item editing (FR-026).
       parameters:
         - $ref: '#/components/parameters/OrderId'
         - $ref: '#/components/parameters/ClientIdHeader'
@@ -259,7 +377,7 @@ paths:
             schema: { $ref: '#/components/schemas/ReplaceLineItemsRequest' }
       responses:
         '200':
-          description: Line items replaced; Gross Total and Net Total recalculated.
+          description: Line items replaced; Gross Total and Net Total recalculated from currently effective contract terms, and the recalculation recorded (FR-007).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OrderDetail' }
@@ -275,22 +393,32 @@ paths:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
         '409':
           description: >
-            Order is no longer editable (past Processing) or was concurrently
+            Order is no longer editable (it has reached Shipped, Final Delivery,
+            or Cancelled, so its totals are locked) or was concurrently
             modified (FR-016, FR-017, FR-025).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '422':
+          description: Client's contract discount terms are missing, ambiguous, or expired at recalculation time (FR-004).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
 
   /orders/{orderId}/cancel:
     post:
-      summary: Cancel an own Active order (FR-010, FR-011, FR-016, FR-018)
+      summary: Cancel an own order from within the Cancellation Window (FR-010, FR-011, FR-016, FR-018)
       operationId: cancelOrder
+      description: >
+        Client-only. Valid only while the order is in Intake or Processing; the
+        Cancellation Window closes permanently on entering Shipped and never
+        reopens (constitution v2.0.0 Principle III).
       parameters:
         - $ref: '#/components/parameters/OrderId'
         - $ref: '#/components/parameters/ClientIdHeader'
       responses:
         '200':
-          description: Order cancelled.
+          description: Order cancelled; transition recorded (FR-007).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OrderDetail' }
@@ -301,16 +429,25 @@ paths:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
         '409':
           description: >
-            Order already at Final Delivery, already Cancelled, or lost a
-            first-committed-wins race against another change (FR-011, FR-016).
+            Order is outside the Cancellation Window, with the specific reason
+            stated in `detail` rather than treated as a silent no-op (FR-011):
+            already Shipped ("the order has shipped and can no longer be
+            cancelled"), already at Final Delivery, or already Cancelled. Also
+            returned when the request lost a first-committed-wins race against a
+            concurrent Processing → Shipped advancement (FR-016).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
 
   /orders/{orderId}/status:
     post:
-      summary: Advance an order's lifecycle status (FR-005, FR-006, FR-012, operator-only)
+      summary: Advance an order one lifecycle stage (FR-005, FR-006, FR-012, operator-only)
       operationId: advanceOrderStatus
+      description: >
+        Operator-only (FR-012), invoked from the advance control on either page's
+        order card (FR-026). Advances exactly one stage along
+        INTAKE → PROCESSING → SHIPPED → FINAL_DELIVERY. Entering SHIPPED also locks
+        the Net Total (FR-017) and closes the Cancellation Window (FR-010).
       parameters:
         - $ref: '#/components/parameters/OrderId'
         - $ref: '#/components/parameters/OperatorIdHeader'
@@ -326,15 +463,17 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/OrderDetail' }
         '404':
-          description: Order not found.
+          description: Order not found. Operator reads are not client-scoped, so this means the order genuinely does not exist (FR-027).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
         '409':
           description: >
-            Requested transition is not a valid next step (skip, backward
-            move, or transition from a terminal state), or lost a
-            first-committed-wins race (FR-006, FR-016).
+            Requested transition is not this order's single valid next step — a
+            skipped stage, a backward move, or any change from a terminal state
+            (Final Delivery or Cancelled) — or the request lost a
+            first-committed-wins race against a concurrent cancellation
+            (FR-006, FR-016).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }

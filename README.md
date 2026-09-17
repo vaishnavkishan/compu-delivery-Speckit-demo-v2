@@ -214,3 +214,75 @@ The generated task list is written to
 ```
 /speckit-tasks
 ```
+
+### 7. Analyse the artifacts for consistency (`/speckit-analyze`, branch 07-speckit-analyse, commit `35f686a`)
+
+A read-only consistency check across `spec.md`, `plan.md`, and `tasks.md`, validated against the
+constitution. Run it after `/speckit-tasks` and before `/speckit-implement` — it reports, it never
+edits. Passes cover duplication, ambiguity, underspecification, constitution alignment, coverage
+gaps, and inconsistency; constitution violations are always CRITICAL.
+
+This run found 15 issues across 62 tasks and 32 requirements — including one CRITICAL
+(`BACKORDERED → PROCESSING` in FR-006 contradicts the constitution's "MUST NOT re-enter a prior
+state," yet the plan's gate table still said PASS) and a test strategy that runs suites no task
+creates.
+
+The command writes no files; this run's output is kept at
+[`specs/001-bulk-hardware-orders/analysis-report.md`](specs/001-bulk-hardware-orders/analysis-report.md).
+
+```
+/speckit-analyze
+```
+
+#### Re-running the constitution to resolve a CRITICAL finding (commit `ef5bf10`):
+
+`/speckit-analyze` only reports a violation — you decide whether the spec or the constitution is
+the wrong side. Here the backordered stage was wrong, so the constitution is amended first and the
+spec, plan, and tasks follow.
+
+Bumped 1.0.0 → 2.0.0 (MAJOR — both are backward-incompatible redefinitions):
+
+- **Principle I** — lifecycle is now exactly four states (Intake → Processing → Shipped → Final
+  Delivery), with no on-hold/backordered state allowed.
+- **Principle III** — cancellation window narrowed to "prior to Shipped".
+
+Scope guard: the command edits only `.specify/memory/constitution.md`, and reports conflicting
+downstream artifacts as a `Next Actions` list instead of rewriting them.
+
+```
+/speckit-constitution There is no need to implement backordered stage. The complete order lifecycle is Intake, Processing, Shipped, Final Delivery with Cancellation as an allowed branch at any point prior to Shipped
+```
+
+#### Re-clarifying the spec against the amended constitution (commit `3c72979`):
+
+The spec still described the backordered stage, so it is re-clarified next. 5 questions:
+lifecycle cut to four states, cancellation window closed at Shipped, an operator surface for
+lifecycle advancement (new FR-026, FR-027), and Order History limited to completed orders.
+
+```
+/speckit-clarify
+```
+
+#### Re-planning the design artifacts against the amended constitution (commit `edea0cd`):
+
+The plan and its design artifacts were still the pre-amendment ones, so `/speckit-plan` is re-run.
+It regenerates all five — `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md` —
+drops Backordered from the lifecycle, derives the cancellation window from status, adds the operator
+surface (FR-026, FR-027), and re-checks all five gates (PASS).
+
+`tasks.md` and `checklists/requirements.md` stay stale — each belongs to the command that owns it.
+
+```
+/speckit-plan
+```
+
+#### Re-generating the tasks against the amended constitution (commit `78ee06b`):
+
+`tasks.md` was the last stale artifact, so `/speckit-tasks` is re-run. It regenerates all 69 tasks
+(was 62): Backordered and the five-column stepper are gone, and new tasks cover the cancellation
+window closing at Shipped, the Active/History partition, role-conditional controls, and operator
+cross-client scope (FR-023, FR-026, FR-027).
+
+```
+/speckit-tasks
+```

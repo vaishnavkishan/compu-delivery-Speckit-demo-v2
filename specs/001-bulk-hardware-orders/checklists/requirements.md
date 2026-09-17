@@ -42,8 +42,8 @@
 - [ ] CHK001 Are the required inputs, ownership rules, and accepted line-item structure for order submission fully specified? [Completeness, Spec §FR-001]
 - [ ] CHK002 Are Gross Total, Contract Discount, Net Total, and the treatment of each line item defined for both initial submission and later edits? [Completeness, Spec §FR-002, Spec §FR-003, Spec §FR-025]
 - [ ] CHK003 Are requirements for missing, ambiguous, and expired contract terms separately defined, including the outcome and reason presented to the client? [Completeness, Spec §FR-004]
-- [ ] CHK004 Are all lifecycle statuses, terminal states, permitted transitions, and actor permissions documented without relying on the plan to fill gaps? [Completeness, Spec §FR-005, Spec §FR-006, Spec §FR-012]
-- [ ] CHK005 Are order history, order detail, cancellation, identity selection, catalog, and line-item editing requirements all represented across the stated client and operator journeys? [Completeness, Spec §FR-008, Spec §FR-010, Spec §FR-019, Spec §FR-020, Spec §FR-025]
+- [x] CHK004 Are all lifecycle statuses, terminal states, permitted transitions, and actor permissions documented without relying on the plan to fill gaps? [Completeness, Spec §FR-005, Spec §FR-006, Spec §FR-012]
+- [x] CHK005 Are order history, order detail, cancellation, identity selection, catalog, and line-item editing requirements all represented across the stated client and operator journeys? [Completeness, Spec §FR-008, Spec §FR-010, Spec §FR-019, Spec §FR-020, Spec §FR-025]
 
 ## Requirement Clarity
 
@@ -57,7 +57,7 @@
 
 - [ ] CHK011 Do the lifecycle requirements consistently include Backordered in the ordered model, the permanent five-step indicator, assumptions, and all acceptance scenarios? [Consistency, Spec §FR-005, Spec §FR-006, Spec §FR-022]
 - [ ] CHK012 Do the pricing lock requirements align between contract changes, explicit edits, the Shipped transition, and the read-only rule? [Consistency, Spec §FR-017, Spec §FR-025]
-- [ ] CHK013 Are the trusted client and operator identifiers, their roles, and their permitted actions described consistently across the scope, requirements, and assumptions? [Consistency, Spec §FR-001, Spec §FR-010, Spec §FR-012, Spec §FR-019]
+- [x] CHK013 Are the trusted client and operator identifiers, their roles, and their permitted actions described consistently across the scope, requirements, and assumptions? [Consistency, Spec §FR-001, Spec §FR-010, Spec §FR-012, Spec §FR-019]
 - [ ] CHK014 Do the informational Freight & Logistics requirement and the single-discount pricing rule consistently exclude freight charges and generic volume discounts from Net Total? [Consistency, Spec §FR-003, Spec §FR-021]
 
 ## Acceptance Criteria Quality
@@ -69,11 +69,11 @@
 
 ## Scenario Coverage
 
-- [ ] CHK019 Are primary submission, pricing, history, cancellation, and lifecycle advancement requirements complete for every user story and its stated acceptance scenarios? [Coverage, Spec §User Stories 1-4]
+- [x] CHK019 Are primary submission, pricing, history, cancellation, and lifecycle advancement requirements complete for every user story and its stated acceptance scenarios? [Coverage, Spec §User Stories 1-4]
 - [ ] CHK020 Are alternate lifecycle paths for Backordered entry and return to Processing explicitly distinguished from invalid backward transitions? [Coverage, Spec §FR-005, Spec §FR-006]
 - [ ] CHK021 Are exception requirements complete for invalid quantities, unknown SKUs, empty orders, invalid contract terms, terminal cancellation, and unauthorized actor roles? [Coverage, Spec §FR-004, Spec §FR-011, Spec §FR-012, Spec §FR-014, Spec §FR-015]
 - [ ] CHK022 Are recovery requirements defined for a rejected concurrent mutation, including the information needed for a caller to reconcile the order's changed state? [Gap, Spec §FR-016]
-- [ ] CHK023 Are requirements for identity switching and client/operator context clear about how role changes affect the permitted request scope? [Coverage, Spec §FR-012, Spec §FR-019]
+- [x] CHK023 Are requirements for identity switching and client/operator context clear about how role changes affect the permitted request scope? [Coverage, Spec §FR-012, Spec §FR-019]
 
 ## Edge Case Coverage
 
@@ -98,6 +98,6 @@
 
 ## Ambiguities & Conflicts
 
-- [ ] CHK036 Is the relationship between cancellation being allowed "at any point prior to Final Delivery" and the client editability window limited to Intake or Processing explicitly reconciled? [Conflict, Spec §FR-010, Spec §FR-025]
+- [x] CHK036 Is the relationship between cancellation being allowed "at any point prior to Final Delivery" and the client editability window limited to Intake or Processing explicitly reconciled? [Conflict, Spec §FR-010, Spec §FR-025]
 - [ ] CHK037 Is the actor or event that triggers the initial lifecycle record and each recalculation defined consistently with the requirement for attributable history? [Ambiguity, Spec §FR-007]
 - [ ] CHK038 Is the distinction between "operator-only" lifecycle advancement and a caller-supplied, unverified operator identifier documented as an intentional demo security boundary? [Assumption, Spec §FR-012, Spec §FR-019]

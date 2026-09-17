@@ -3,7 +3,14 @@
 All technology choices were supplied directly by the user (see `plan.md` Technical
 Context), so no NEEDS CLARIFICATION markers remain for stack selection. Research below
 resolves the *implementation-pattern* decisions needed to apply that stack correctly
-against the spec's requirements (FR-001–FR-025) and constitution gates.
+against the spec's requirements (FR-001–FR-027) and the constitution **v2.0.0** gates.
+
+Revised 2026-09-17 for constitution v2.0.0 (four-state lifecycle, no
+backordered/on-hold state, Cancellation Window closing at Shipped) and the spec's
+Session 2026-09-17 clarifications (operator cross-client scope, operator controls on
+the existing pages, Active/History partition). Decisions #4 and #13 carry the
+substantive changes; superseded wording is marked rather than deleted so the
+reasoning trail stays intact.
 
 ## 1. Caller-supplied identity (no auth)
 
@@ -55,19 +62,38 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
 
 ## 4. Order lifecycle transition validation (FR-005, FR-006)
 
-- **Decision**: A single `OrderStatus` enum (`INTAKE, PROCESSING, BACKORDERED,
-  SHIPPED, FINAL_DELIVERY, CANCELLED`) plus a static allowed-transitions map enforced
-  in a domain service (`OrderLifecycleService`) before any status write:
-  `INTAKE→PROCESSING`, `PROCESSING→BACKORDERED`, `BACKORDERED→PROCESSING`,
-  `PROCESSING→SHIPPED`, `SHIPPED→FINAL_DELIVERY`, and `{INTAKE, PROCESSING,
-  BACKORDERED, SHIPPED}→CANCELLED` (client-initiated only). Any transition not in the
-  map is rejected with 409/422 and a clear message.
-- **Rationale**: Centralizing the transition table is the simplest way to guarantee
-  FR-006 (no skips, no backward moves, no post-terminal changes) except the one
-  explicitly allowed reversal (Backordered→Processing), and keeps Constitution
-  Principle I enforceable in one place.
+- **Decision** (revised 2026-09-17): A single `OrderStatus` enum with exactly the
+  four lifecycle states plus the terminal cancellation state — `INTAKE, PROCESSING,
+  SHIPPED, FINAL_DELIVERY, CANCELLED` — plus a static allowed-transitions map
+  enforced in a domain service (`OrderLifecycleService`) before any status write:
+  `INTAKE→PROCESSING`, `PROCESSING→SHIPPED`, `SHIPPED→FINAL_DELIVERY`, and
+  `{INTAKE, PROCESSING}→CANCELLED` (client-initiated only). The map contains no
+  reverse edge and no self-edge; any transition not in it is rejected with 409 and a
+  clear message. `FINAL_DELIVERY` and `CANCELLED` have no outgoing edges.
+- **Rationale**: Constitution v2.0.0 Principle I enumerates the lifecycle as exactly
+  four ordered states and forbids introducing any on-hold/backordered/suspended
+  state without amending the constitution first. Omitting such a state from the enum
+  (rather than defining it and refusing to use it) makes it *unrepresentable* — no
+  persisted row, API payload, or UI step can express it — which is a stronger
+  guarantee than validation alone. With no reversal to carve out, the transition map
+  becomes a plain linear chain plus one branch, so FR-006 (no skips, no backward
+  moves, no post-terminal changes) holds with no exceptions to document. Centralizing
+  the map keeps Principle I enforceable in one place.
+- **Hardware availability**: an order waiting on stock stays in `PROCESSING`
+  (FR-005). Availability, stock levels, and replenishment are modelled nowhere in
+  this service — the constitution's Governance & Boundaries section assigns them to
+  the inventory domain and explicitly forbids modelling them as lifecycle states.
+- **Superseded**: the pre-2026-09-17 decision used a six-member enum including
+  `BACKORDERED`, with `PROCESSING→BACKORDERED` and `BACKORDERED→PROCESSING` edges
+  and cancellation valid from any non-terminal state including `SHIPPED`. All three
+  are withdrawn: the state is gone, the reversal is gone, and cancellation is
+  confined to the Cancellation Window (see #13).
 - **Alternatives considered**: A full state-machine library (e.g. Spring
-  Statemachine) — rejected as disproportionate for 6 states and a handful of edges.
+  Statemachine) — rejected as disproportionate for 5 states and 4 edges. Keeping
+  `BACKORDERED` in the enum but making it unreachable — rejected: it would still
+  surface in the OpenAPI `OrderStatus` schema and in persisted history, inviting
+  clients and future consumers to handle a state the constitution says does not
+  exist.
 
 ## 5. Net Total lock point and recalculation on edit (FR-017, FR-025)
 
@@ -80,6 +106,10 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
   updating a prior row) per FR-007/Constitution Principle IV.
 - **Rationale**: Directly implements the FR-017 lock semantics and keeps
   recalculation append-only and traceable.
+- **Note (2026-09-17)**: this lock point is unchanged by constitution v2.0.0, and it
+  now coincides exactly with the close of the Cancellation Window — entering
+  `SHIPPED` both stamps `net_total_locked_at` and ends cancellability, so a single
+  transition handler enforces both (see #13).
 - **Alternatives considered**: Locking at intake (original spec wording) — superseded
   by the 2026-08-17 clarification; recalculating net total automatically whenever
   contract terms change — explicitly rejected by the spec (Edge Cases, FR-017).
@@ -177,7 +207,9 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
   appropriate header via a thin `fetch` wrapper.
 - **Rationale**: Matches the two-page structure decided in Clarifications
   (2026-08-17) and keeps identity-switching a single source of truth consumed by
-  both pages.
+  both pages. The selected identity's *role* also drives which per-order control a
+  card renders (FR-026), so the same Context serves both personas without a separate
+  operator page — see #14.
 - **Alternatives considered**: A heavier state library (Redux/Zustand) — rejected,
   the app's client state (selected identity, in-progress order draft, live pricing
   summary) fits comfortably in Context + component state; a full server-state library
@@ -225,3 +257,91 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
   (original decision, pre-2026-08-19) — superseded because it would force
   warehouse/invoice services to be built and deployed as one unit with order-api
   once they exist, defeating the point of a services-oriented monorepo.
+
+## 13. Cancellation Window enforcement and operator access scope
+
+Added 2026-09-17 to cover constitution v2.0.0 Principle III and spec clarifications
+FR-010/FR-011 (window closes at Shipped), FR-027 (operator cross-client scope) and
+FR-023 (Active/History partition).
+
+- **Decision — window enforcement**: cancellability is derived, never stored. A
+  domain predicate `BulkOrder.isWithinCancellationWindow()` returns
+  `status == INTAKE || status == PROCESSING`, and the cancel service calls it before
+  any write. Three distinct rejections are produced so the reason is explicit rather
+  than a silent no-op (constitution Usage rules): `SHIPPED` → 409 "order has shipped
+  and can no longer be cancelled"; `FINAL_DELIVERY` → 409 "order has been
+  delivered"; already `CANCELLED` → 409 "order is already cancelled". The same
+  predicate feeds the API response (`cancellable` boolean on the order payload) so
+  the UI's disabled-with-explanation control (FR-022) and the server's rejection
+  cannot disagree.
+- **Rationale**: Deriving the window from `status` keeps it impossible for a stored
+  "cancellable" flag to drift out of sync with the lifecycle, and the shared
+  predicate means the UI never has to re-implement the rule. Returning the boolean
+  rather than having the frontend hardcode the state set also means a future
+  lifecycle amendment changes one place.
+- **Alternatives considered**: A `cancellation_window_closed_at` timestamp column —
+  rejected as redundant with `net_total_locked_at` (both are stamped on entering
+  `SHIPPED`) and as a second source of truth for something `status` already
+  determines; letting the UI decide cancellability from `status` alone — rejected
+  because it duplicates a constitutional rule in the frontend.
+
+- **Decision — operator scope**: client-scoped and operator-scoped reads use
+  *separate repository methods*. Client reads go through methods that take a
+  `clientId` parameter and always include `client_id` in the `WHERE` clause
+  (`findByIdAndClientId`, `findAllByClientId`); operator reads go through distinct
+  methods that take no `clientId` at all (`findByIdForOperator`, `findAllForOperator`)
+  and return each order with its owning `clientId` and client display name for
+  on-screen attribution (FR-027). No method takes a nullable `clientId` whose null
+  silently widens the scope.
+- **Rationale**: FR-009's boundary applies to client identities; operators are
+  internal staff outside it. Expressing that as two separate method signatures makes
+  the scope visible at every call site and makes "forgot to pass the client id" a
+  compile-time impossibility rather than a data-leak bug — the failure mode that
+  Constitution Principle III and SC-006 exist to prevent. A nullable-parameter
+  design would make the most serious possible defect in this feature a one-line
+  omission.
+- **Alternatives considered**: One repository method with a nullable `clientId`
+  (null = operator/all) — rejected per the above; a Spring Security-style row filter
+  or Hibernate `@Filter` keyed on the request identity — rejected as indirection
+  that hides the scope decision from the reading of the service code, in a codebase
+  with no security framework to hang it on.
+
+- **Decision — Active/History partition**: the split is a single derived rule applied
+  in one place. `OrderStatus.isActive()` is true for `{INTAKE, PROCESSING, SHIPPED}`
+  and false for `{FINAL_DELIVERY, CANCELLED}`; the list endpoint returns every
+  in-scope order once with its `status`, and the dashboard partitions on
+  `isActive()`. Because the predicate is total over the enum and the two sections are
+  its complement, no order can be missing from both sections or appear in both
+  (FR-023).
+- **Rationale**: Partitioning client-side from one authoritative predicate guarantees
+  the no-overlap/no-omission property structurally, rather than relying on two server
+  queries whose filters must be kept mutually exclusive by hand. It also keeps a
+  single round trip per dashboard load.
+- **Alternatives considered**: Two endpoints (`/orders?scope=active`,
+  `?scope=history`) — rejected: two independently-maintained filters are exactly how
+  an order comes to appear twice or vanish, and it doubles the dashboard's requests
+  for no benefit at this scale. Adding a stored `is_active` column — rejected as
+  derivable state.
+
+## 14. Role-conditional UI controls (FR-026, FR-022)
+
+Added 2026-09-17.
+
+- **Decision**: No operator-only page or route is added. `IdentityContext` exposes the
+  selected identity's `role` (`CLIENT` | `OPERATOR`), and a single
+  `OrderCardActions` component renders, for one order: the cancel control when the
+  role is `CLIENT` (enabled iff the order payload's `cancellable` is true, otherwise
+  disabled with the inline shipped/delivered/cancelled explanation), or the "Advance
+  to <next stage>" control when the role is `OPERATOR` and the order is non-terminal,
+  or nothing when the order is terminal. The next-stage label comes from a shared
+  frontend mirror of the transition map, so the button always names the stage the
+  server would actually accept. Order creation and line-item editing controls are
+  hidden for operator identities.
+- **Rationale**: FR-026 explicitly places advancement on the existing two pages;
+  concentrating the role/state branching in one component keeps both pages' cards
+  consistent and gives the Vitest suite a single unit covering all
+  role × status combinations.
+- **Alternatives considered**: A separate operator route/page — rejected, contradicts
+  FR-026; rendering both controls and disabling the inapplicable one — rejected, the
+  spec calls for the advance control to appear *in place of* the cancel control, and
+  showing clients a disabled operator action misrepresents what they may do.
