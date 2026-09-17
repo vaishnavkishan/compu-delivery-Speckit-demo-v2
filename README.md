@@ -262,3 +262,16 @@ lifecycle advancement (new FR-026, FR-027), and Order History limited to complet
 ```
 /speckit-clarify
 ```
+
+#### Re-planning the design artifacts against the amended constitution (commit `edea0cd`):
+
+The plan and its design artifacts were still the pre-amendment ones, so `/speckit-plan` is re-run.
+It regenerates all five — `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md` —
+drops Backordered from the lifecycle, derives the cancellation window from status, adds the operator
+surface (FR-026, FR-027), and re-checks all five gates (PASS).
+
+`tasks.md` and `checklists/requirements.md` stay stale — each belongs to the command that owns it.
+
+```
+/speckit-plan
+```
