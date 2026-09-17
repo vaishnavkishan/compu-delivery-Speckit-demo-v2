@@ -53,8 +53,15 @@ components:
           description: Conflict response with the state needed for caller reconciliation.
           properties:
             currentStatus: { $ref: '#/components/schemas/OrderStatus' }
-            latestUpdatedAt: { type: string, format: date-time, description: UTC timestamp with millisecond precision }
+            latestUpdatedAt: { $ref: '#/components/schemas/UtcMillisecondTimestamp' }
           required: [currentStatus, latestUpdatedAt]
+
+    UtcMillisecondTimestamp:
+      type: string
+      format: date-time
+      pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$'
+      example: '2026-09-16T15:04:00.123Z'
+      description: UTC ISO-8601 timestamp with exactly millisecond precision.
 
     HardwareCatalogItem:
       type: object
@@ -100,7 +107,7 @@ components:
         toStatus: { $ref: '#/components/schemas/OrderStatus' }
         actorType: { type: string, enum: [CLIENT, OPERATOR, SYSTEM] }
         actorId: { type: string }
-        occurredAt: { type: string, format: date-time }
+        occurredAt: { $ref: '#/components/schemas/UtcMillisecondTimestamp' }
       required: [toStatus, actorType, actorId, occurredAt]
 
     Order:
@@ -116,9 +123,12 @@ components:
         appliedDiscountPercentage: { type: number, format: decimal }
         netTotal: { type: number, format: decimal }
         netTotalLocked: { type: boolean }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-        cancelledAt: { type: string, format: date-time, nullable: true }
+        createdAt: { $ref: '#/components/schemas/UtcMillisecondTimestamp' }
+        updatedAt: { $ref: '#/components/schemas/UtcMillisecondTimestamp' }
+        cancelledAt:
+          allOf:
+            - $ref: '#/components/schemas/UtcMillisecondTimestamp'
+          nullable: true
       required: [id, clientId, status, lineItems, grossTotal, appliedDiscountPercentage, netTotal, netTotalLocked, createdAt, updatedAt]
 
     OrderDetail:
@@ -135,10 +145,14 @@ components:
       properties:
         id: { type: string, format: uuid }
         status: { $ref: '#/components/schemas/OrderStatus' }
+        lineItems:
+          type: array
+          items: { $ref: '#/components/schemas/LineItem' }
+        grossTotal: { type: number, format: decimal, description: USD amount rounded to cents }
         netTotal: { type: number, format: decimal }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-      required: [id, status, netTotal, createdAt, updatedAt]
+        createdAt: { $ref: '#/components/schemas/UtcMillisecondTimestamp' }
+        updatedAt: { $ref: '#/components/schemas/UtcMillisecondTimestamp' }
+      required: [id, status, lineItems, grossTotal, netTotal, createdAt, updatedAt]
 
     CreateOrderRequest:
       type: object
@@ -289,7 +303,7 @@ paths:
             modified (FR-016, FR-017, FR-025).
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ProblemDetail' }
+              schema: { $ref: '#/components/schemas/ConflictProblemDetail' }
         '422':
           description: Current contract discount terms are missing, ambiguous, or expired; prior order data is preserved.
           content:

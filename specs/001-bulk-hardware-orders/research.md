@@ -106,27 +106,10 @@ BACKORDERED, SHIPPED}→CANCELLED` (client-initiated only). Any transition not i
   "expired" (FR-004) or preserve what was actually applied at calculation time
   (Constitution Principle IV).
 
-## 13. Monetary precision, audit timestamps, and retention (FR-002, FR-003, FR-007)
-
-- **Decision**: Store and serialize all monetary amounts as USD decimal values
-  rounded to exactly two fractional digits. Calculate each line subtotal and Gross
-  Total first, then apply the contract percentage to the Gross Total and round the
-  resulting Net Total to cents using half-up rounding. Store every lifecycle and
-  pricing audit timestamp in UTC with millisecond precision. Retain append-only
-  lifecycle, cancellation, and pricing records for seven years after the order
-  reaches Final Delivery or Cancelled.
-- **Rationale**: A single currency and explicit scale prevent floating-point drift,
-  while millisecond timestamps and a defined completion point make audit retention
-  measurable and reconstructable.
-- **Alternatives considered**: Binary floating-point amounts and second-only
-  timestamps — rejected because they cannot reliably satisfy cent-accurate pricing
-  or the clarified audit precision requirement; indefinite retention — rejected as
-  unspecified operational scope.
-
 ## 7. OrderIntaken event publishing (RabbitMQ)
 
 - **Decision**: A topic exchange `order.events` with routing key
-  `order.intaken`. The order service publishes after the intake transaction commits,
+  `order.intaken`. The order service publishes at least once after the intake transaction commits,
   using `TransactionalEventListener(phase = AFTER_COMMIT)` on a Spring
   `ApplicationEvent` raised inside the transactional order-creation service method,
   so a message is never published for an order that failed to persist (and a
@@ -245,3 +228,22 @@ BACKORDERED, SHIPPED}→CANCELLED` (client-initiated only). Any transition not i
   (original decision, pre-2026-08-19) — superseded because it would force
   warehouse/invoice services to be built and deployed as one unit with order-api
   once they exist, defeating the point of a services-oriented monorepo.
+
+## 13. Monetary precision, audit timestamps, and retention (FR-002, FR-003, FR-007)
+
+- **Decision**: Store and serialize all monetary amounts as USD decimal values
+  rounded to exactly two fractional digits. Calculate each line subtotal and Gross
+  Total first, then apply the contract percentage to the Gross Total and round the
+  resulting Net Total to cents using half-up rounding. Store every lifecycle and
+  pricing audit timestamp in UTC with millisecond precision. Retain append-only
+  lifecycle, cancellation, and pricing records for seven years after the order
+  reaches Final Delivery or Cancelled. Enforce retention with a scheduled database
+  retention job that refuses deletion before the terminal timestamp plus seven
+  years; integration tests cover both protected and eligible records.
+- **Rationale**: A single currency and explicit scale prevent floating-point drift,
+  while millisecond timestamps and an enforced retention boundary make audit history
+  measurable and reconstructable.
+- **Alternatives considered**: Binary floating-point amounts and second-only
+  timestamps — rejected because they cannot reliably satisfy cent-accurate pricing
+  or the clarified audit precision requirement; indefinite retention — rejected as
+  unspecified operational scope.

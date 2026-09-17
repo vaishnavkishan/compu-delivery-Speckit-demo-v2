@@ -15,9 +15,9 @@ without requiring a change to this service.
 
 ## OrderIntaken
 
-Published exactly once per successfully created order, after the creating
+Published at least once per successfully created order, after the creating
 transaction commits (see research.md #7 — `AFTER_COMMIT`, never published for an
-order that failed to persist).
+order that failed to persist). Consumers must deduplicate by `eventId` or `orderId`.
 
 ### Payload (JSON)
 

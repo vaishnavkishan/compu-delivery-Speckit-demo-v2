@@ -95,8 +95,9 @@ transitions succeed (FR-006 exception case).
 
 ## 7. Validate FR-016 — first-committed-wins conflict
 
-Fire a cancel request and a `targetStatus: FINAL_DELIVERY` advance request for the
-same order concurrently (e.g. two parallel `curl` calls); confirm exactly one
+First advance the test order to `SHIPPED` using the operator command from step 6.
+Then fire a cancel request and a `targetStatus: FINAL_DELIVERY` advance request for
+the same order concurrently (e.g. two parallel `curl` calls); confirm exactly one
 succeeds (HTTP 200) and the other returns HTTP 409 with a message indicating the
 order's state has changed plus `currentStatus` and `latestUpdatedAt` fields.
 

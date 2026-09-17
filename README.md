@@ -253,3 +253,9 @@ and requirements checklist.
 ```
 /speckit-clarify
 ```
+
+#### Re-run the implementation plan after clarification changes:
+
+```
+/speckit-plan
+```
