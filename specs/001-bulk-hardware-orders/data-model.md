@@ -5,6 +5,12 @@ concrete columns needed to satisfy the Functional Requirements and Constitution
 Principles I–V. Storage is PostgreSQL 17, managed by Flyway migrations, in a single
 schema owned by the order service.
 
+Revised 2026-09-17 for constitution **v2.0.0**: the `status` enum drops
+`BACKORDERED`, the transition map drops the `PROCESSING ⇄ BACKORDERED` reversal, and
+cancellation is confined to the Cancellation Window (`INTAKE` or `PROCESSING`). Also
+adds the `Operator` entity and the Derived Views section needed by FR-022, FR-023,
+FR-026 and FR-027.
+
 ## Entity Overview
 
 ```
@@ -15,6 +21,7 @@ BulkOrder        1───* LifecycleTransition
 BulkOrder        1───* NetTotalCalculation
 BulkOrder        0..1─1 CancellationRecord
 HardwareCatalogItem 1───* LineItem  (by SKU, reference-only)
+Operator         (standalone; referenced by LifecycleTransition.actor_id only)
 ```
 
 ## EnterpriseClient
@@ -28,6 +35,24 @@ Business account under contract; owns Orders and Order History.
 | `created_at` | `timestamptz` | Seed/record time. |
 
 Seeded via Flyway with a small fixed set of demo clients (FR-019).
+
+## Operator
+
+Internal staff identity permitted to advance an order's lifecycle status (FR-012).
+An Operator is **not** an EnterpriseClient and owns no orders; it sits outside the
+per-client access boundary and may read every client's orders (FR-027,
+Constitution III).
+
+| Field | Type | Notes |
+|---|---|---|
+| `operator_id` | `varchar` (PK) | Caller-supplied identifier, e.g. `OPS-1`. Trusted as-is (no login). |
+| `display_name` | `varchar` | Shown in the demo identity switcher. |
+| `created_at` | `timestamptz` | Seed/record time. |
+
+Seeded via Flyway alongside the demo clients; both sets are exposed read-only
+through `GET /api/demo-identities` with a `role` discriminator (`research.md` #2).
+No foreign key ties `LifecycleTransition.actor_id` to this table, since that column
+also holds client identifiers and the literal `SYSTEM`.
 
 ## ContractDiscountTerms
 
@@ -57,8 +82,8 @@ The order as a whole; single source of lifecycle status, aggregate pricing.
 | Field | Type | Notes |
 |---|---|---|
 | `id` | `uuid` (PK) | |
-| `client_id` | `varchar` (FK → EnterpriseClient) | Owning client; all queries scoped by this (FR-009). |
-| `status` | `varchar`/enum | `INTAKE, PROCESSING, BACKORDERED, SHIPPED, FINAL_DELIVERY, CANCELLED`. |
+| `client_id` | `varchar` (FK → EnterpriseClient) | Owning client; every **client-identity** query is scoped by this (FR-009). Operator-identity queries are deliberately unscoped and instead project this column for on-screen attribution (FR-027). |
+| `status` | `varchar`/enum | `INTAKE, PROCESSING, SHIPPED, FINAL_DELIVERY, CANCELLED` — exactly the four constitutional lifecycle states plus the terminal cancellation state. No `BACKORDERED`/on-hold member exists, so an out-of-lifecycle status is unrepresentable (Constitution I, FR-005). |
 | `gross_total` | `numeric(12,2)` | Sum of line item subtotals as submitted (FR-002). |
 | `applied_discount_percentage` | `numeric(5,2)` | Snapshot of the contract discount used for the current `net_total` (Constitution IV). |
 | `net_total` | `numeric(12,2)` | `gross_total * (1 - applied_discount_percentage/100)`. |
@@ -74,23 +99,32 @@ The order as a whole; single source of lifecycle status, aggregate pricing.
   Transitions below).
 - Line items and `gross_total`/`net_total` are mutable only while `status IN
   (INTAKE, PROCESSING)` (FR-025); immutable once `net_total_locked_at` is set.
+- An order awaiting hardware availability holds `PROCESSING`; no status represents
+  stock state (FR-005, Constitution Governance & Boundaries).
 
-**State Transitions** (FR-005, FR-006, edge case on Backordered):
+**State Transitions** (FR-005, FR-006):
 
 ```
 INTAKE ──▶ PROCESSING ──▶ SHIPPED ──▶ FINAL_DELIVERY  (terminal)
-              │  ▲
-              ▼  │
-          BACKORDERED
+   │            │
+   └────────────┴──▶ CANCELLED  (terminal, client-initiated only)
 
-INTAKE, PROCESSING, BACKORDERED, SHIPPED ──▶ CANCELLED  (terminal, client-initiated only)
+        └─ Cancellation Window ─┘   closes on entering SHIPPED, never reopens
 ```
 
-- Forward progression (`INTAKE→PROCESSING→SHIPPED→FINAL_DELIVERY`) and the
-  `PROCESSING↔BACKORDERED` reversal are operator-initiated (FR-012).
-- Cancellation is client-initiated (FR-010) and valid from any non-terminal state.
+- Forward progression (`INTAKE→PROCESSING→SHIPPED→FINAL_DELIVERY`) is
+  operator-initiated (FR-012) and advances exactly one stage at a time.
+- Cancellation is client-initiated (FR-010) and valid **only** from `INTAKE` or
+  `PROCESSING` — the Cancellation Window. A `SHIPPED` order is Active but not
+  cancellable; the attempt is rejected explicitly, never as a silent no-op
+  (FR-011, Constitution III).
+- There are no reverse edges and no self-edges: a backward move, a skipped stage,
+  or any change from a terminal state is rejected (FR-006).
 - `FINAL_DELIVERY` and `CANCELLED` are terminal — no further transitions accepted
   (FR-006, acceptance scenarios in User Story 4).
+- Entering `SHIPPED` is the single point that both stamps `net_total_locked_at`
+  (FR-017) and closes the Cancellation Window (FR-010), so one transition handler
+  enforces both (`research.md` #5, #13).
 
 ## LineItem
 
@@ -162,7 +196,8 @@ FR-017, FR-025).
 
 ## CancellationRecord
 
-Timestamped record that a client cancelled a specific Active Order.
+Timestamped record that a client cancelled a specific order from within the
+Cancellation Window.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -171,14 +206,33 @@ Timestamped record that a client cancelled a specific Active Order.
 | `cancelled_by` | `varchar` | Client identifier. |
 | `cancelled_at` | `timestamptz` | |
 
-Created exactly once, at the moment `BulkOrder.status` transitions to `CANCELLED`;
-a second cancellation attempt is rejected before a second record could be created
-(FR-011, User Story 3 acceptance scenario 3).
+Created exactly once, at the moment `BulkOrder.status` transitions to `CANCELLED`
+from `INTAKE` or `PROCESSING`. The unique constraint on `order_id` is the last line
+of defence; the service rejects a second cancellation attempt, and any attempt on a
+`SHIPPED` or `FINAL_DELIVERY` order, before a second record could be created
+(FR-011, User Story 3 acceptance scenarios 2 and 4).
+
+## Derived Views (no stored state)
+
+Three rules the API and UI both depend on are **derived from `status`**, never stored
+as columns, so they cannot drift out of sync with the lifecycle (`research.md` #13):
+
+| Derived value | Definition | Consumers |
+|---|---|---|
+| `cancellable` | `status IN (INTAKE, PROCESSING)` — the Cancellation Window | Cancel service precondition (FR-010/FR-011); `cancellable` boolean on the order payload driving the UI's enabled/disabled cancel control (FR-022) |
+| `active` | `status IN (INTAKE, PROCESSING, SHIPPED)` | Dashboard's Active Orders section; its complement `status IN (FINAL_DELIVERY, CANCELLED)` is the Order History Log (FR-023) |
+| `nextStatus` | the single outgoing edge from `status` in the transition map, or none for a terminal status | Operator's "Advance to <next stage>" control label and the server's advance validation (FR-006, FR-026) |
+
+Because `active` is a total predicate over the enum, Active Orders and Order History
+are exact complements: no order can be absent from both sections or present in both
+(FR-023). `cancellable` is a strict subset of `active` — a `SHIPPED` order is Active
+but outside the Cancellation Window, which is precisely the distinction constitution
+v2.0.0 introduced.
 
 ## Cross-Entity Invariants (traced to gates)
 
 - Every read of BulkOrder/LineItem/LifecycleTransition/NetTotalCalculation for a
-  client-facing endpoint is filtered by `client_id = <caller's identity>` at the
+  **client identity** is filtered by `client_id = <caller's identity>` at the
   repository/query level, never filtered only in the response serializer
   (Constitution III, FR-009).
 - An order ID that doesn't exist, or exists but belongs to a different
@@ -186,3 +240,25 @@ a second cancellation attempt is rejected before a second record could be create
   having the repository query include `client_id` in its `WHERE` clause so "not
   mine" and "doesn't exist" are indistinguishable at the data-access layer, not
   just at the response-formatting layer.
+- Reads for an **operator identity** are served by separate repository methods that
+  take no `client_id` parameter at all and return orders across every client, each
+  carrying its owning `client_id` and client display name (FR-027). No repository
+  method accepts a nullable `client_id` whose null would silently widen scope, so a
+  client-scoped call site cannot become cross-client by omission (`research.md` #13).
+  Operators are outside the per-client boundary by design and are excluded from
+  SC-006.
+- Writes are role-partitioned: `status` advancement is reachable only from an
+  operator identity (FR-012, FR-026), while cancellation and line-item edits are
+  reachable only from the owning client identity (FR-010, FR-025). No endpoint
+  accepts either header interchangeably for a write.
+- `CancellationRecord` exists if and only if `BulkOrder.status = CANCELLED`, and
+  `BulkOrder.cancelled_at` equals that record's `cancelled_at`.
+- `net_total_locked_at` is non-null if and only if the order has reached `SHIPPED`
+  or `FINAL_DELIVERY`; while it is non-null, no `LineItem` row for that order and no
+  `gross_total`/`net_total`/`applied_discount_percentage` value may change (FR-017,
+  FR-025).
+- `LifecycleTransition` rows for one order form an unbroken chain: the first row has
+  `from_status = NULL, to_status = INTAKE`, and each subsequent row's `from_status`
+  equals the previous row's `to_status`, matching an edge in the transition map. A
+  gap or a non-map edge in this chain is evidence of a Principle I violation and is
+  what the audit in SC-005 reconstructs.
