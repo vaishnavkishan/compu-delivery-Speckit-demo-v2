@@ -215,7 +215,7 @@ The generated task list is written to
 /speckit-tasks
 ```
 
-### 7. Analyse the artifacts for consistency (`/speckit-analyze`, branch 07-speckit-analyse)
+### 7. Analyse the artifacts for consistency (`/speckit-analyze`, branch 07-speckit-analyse, commit `35f686a`)
 
 A read-only consistency check across `spec.md`, `plan.md`, and `tasks.md`, validated against the
 constitution. Run it after `/speckit-tasks` and before `/speckit-implement` — it reports, it never
