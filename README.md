@@ -233,3 +233,22 @@ The command writes no files; this run's output is kept at
 ```
 /speckit-analyze
 ```
+
+#### Re-running the constitution to resolve a CRITICAL finding (commit `ef5bf10`):
+
+`/speckit-analyze` only reports a violation — you decide whether the spec or the constitution is
+the wrong side. Here the backordered stage was wrong, so the constitution is amended first and the
+spec, plan, and tasks follow.
+
+Bumped 1.0.0 → 2.0.0 (MAJOR — both are backward-incompatible redefinitions):
+
+- **Principle I** — lifecycle is now exactly four states (Intake → Processing → Shipped → Final
+  Delivery), with no on-hold/backordered state allowed.
+- **Principle III** — cancellation window narrowed to "prior to Shipped".
+
+Scope guard: the command edits only `.specify/memory/constitution.md`, and reports conflicting
+downstream artifacts as a `Next Actions` list instead of rewriting them.
+
+```
+/speckit-constitution There is no need to implement backordered stage. The complete order lifecycle is Intake, Processing, Shipped, Final Delivery with Cancellation as an allowed branch at any point prior to Shipped
+```
