@@ -259,3 +259,19 @@ and requirements checklist.
 ```
 /speckit-plan
 ```
+
+#### Re-run the tasks to realign them with the revised plan:
+
+`tasks.md` was written before the constitution, clarification, and plan re-runs above, so it no
+longer matched its own source artifacts. Re-running with explicit reconciliation guidance found ten
+discrepancies — including missing tasks for cent rounding, UTC millisecond timestamps, the
+seven-year retention rule, the 409 conflict payload, the 422 contract-terms rollback, and the
+SC-001/SC-003/SC-007 verifications — and rewrote the list from 62 to 72 tasks, recording each
+discrepancy and its resolution in an alignment table at the top of the file.
+
+Note: the constitution amendment from `f75a8e5` was later reverted, so the tasks keep FR-025's
+Intake/Processing-only edit scope and `analysis.md` is now stale.
+
+```
+/speckit-tasks Find the descrepencies with plan and update the tasks
+```
