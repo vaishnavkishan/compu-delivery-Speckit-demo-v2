@@ -275,3 +275,14 @@ surface (FR-026, FR-027), and re-checks all five gates (PASS).
 ```
 /speckit-plan
 ```
+
+#### Re-generating the tasks against the amended constitution (commit `78ee06b`):
+
+`tasks.md` was the last stale artifact, so `/speckit-tasks` is re-run. It regenerates all 69 tasks
+(was 62): Backordered and the five-column stepper are gone, and new tasks cover the cancellation
+window closing at Shipped, the Active/History partition, role-conditional controls, and operator
+cross-client scope (FR-023, FR-026, FR-027).
+
+```
+/speckit-tasks
+```
