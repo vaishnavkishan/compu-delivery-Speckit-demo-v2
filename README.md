@@ -214,3 +214,22 @@ The generated task list is written to
 ```
 /speckit-tasks
 ```
+
+### 7. Analyse the artifacts for consistency (`/speckit-analyze`, branch 07-speckit-analyse)
+
+A read-only consistency check across `spec.md`, `plan.md`, and `tasks.md`, validated against the
+constitution. Run it after `/speckit-tasks` and before `/speckit-implement` — it reports, it never
+edits. Passes cover duplication, ambiguity, underspecification, constitution alignment, coverage
+gaps, and inconsistency; constitution violations are always CRITICAL.
+
+This run found 15 issues across 62 tasks and 32 requirements — including one CRITICAL
+(`BACKORDERED → PROCESSING` in FR-006 contradicts the constitution's "MUST NOT re-enter a prior
+state," yet the plan's gate table still said PASS) and a test strategy that runs suites no task
+creates.
+
+The command writes no files; this run's output is kept at
+[`specs/001-bulk-hardware-orders/analysis-report.md`](specs/001-bulk-hardware-orders/analysis-report.md).
+
+```
+/speckit-analyze
+```
