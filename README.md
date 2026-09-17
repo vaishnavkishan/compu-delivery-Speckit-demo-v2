@@ -252,3 +252,13 @@ downstream artifacts as a `Next Actions` list instead of rewriting them.
 ```
 /speckit-constitution There is no need to implement backordered stage. The complete order lifecycle is Intake, Processing, Shipped, Final Delivery with Cancellation as an allowed branch at any point prior to Shipped
 ```
+
+#### Re-clarifying the spec against the amended constitution (commit `3c72979`):
+
+The spec still described the backordered stage, so it is re-clarified next. 5 questions:
+lifecycle cut to four states, cancellation window closed at Shipped, an operator surface for
+lifecycle advancement (new FR-026, FR-027), and Order History limited to completed orders.
+
+```
+/speckit-clarify
+```
