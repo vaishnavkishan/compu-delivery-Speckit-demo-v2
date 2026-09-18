@@ -41,14 +41,14 @@
 
 - [x] CHK001 Are the required inputs, ownership rules, and accepted line-item structure for order submission fully specified? [Completeness, Spec §FR-001]
 - [x] CHK002 Are Gross Total, Contract Discount, Net Total, and the treatment of each line item defined for both initial submission and later edits? [Completeness, Spec §FR-002, Spec §FR-003, Spec §FR-025]
-- [ ] CHK003 Are requirements for missing, ambiguous, and expired contract terms separately defined, including the outcome and reason presented to the client? [Completeness, Spec §FR-004]
+- [x] CHK003 Are requirements for missing, ambiguous, and expired contract terms separately defined, including the outcome and reason presented to the client? [Completeness, Spec §FR-004]
 - [x] CHK004 Are all lifecycle statuses, terminal states, permitted transitions, and actor permissions documented without relying on the plan to fill gaps? [Completeness, Spec §FR-005, Spec §FR-006, Spec §FR-012]
 - [x] CHK005 Are order history, order detail, cancellation, identity selection, catalog, and line-item editing requirements all represented across the stated client and operator journeys? [Completeness, Spec §FR-008, Spec §FR-010, Spec §FR-019, Spec §FR-020, Spec §FR-025]
 
 ## Requirement Clarity
 
 - [x] CHK006 Is the meaning of "current" contract discount terms unambiguous at each calculation point, including time-bound validity and multiple matching terms? [Clarity, Spec §FR-003, Spec §FR-004]
-- [ ] CHK007 Is the distinction between an order being accepted in Intake and an order being finalized clearly defined? [Ambiguity, Spec §FR-001, Spec §FR-004, Spec §FR-005]
+- [x] CHK007 Is the distinction between an order being accepted in Intake and an order being finalized clearly defined? [Ambiguity, Spec §FR-001, Spec §FR-004, Spec §FR-005]
 - [x] CHK008 Are the exact calculation rules, rounding precision, currency, and treatment of zero or negative monetary results specified? [Gap, Spec §FR-002, Spec §FR-003]
 - [x] CHK009 Is "relevant dates" defined as a concrete set of timestamps for history and order detail? [Ambiguity, Spec §FR-008, Spec §FR-007]
 - [ ] CHK010 Are "clear message," "specific reason," and "generic not-found response" defined with objective content and consistent disclosure limits? [Clarity, Spec §FR-004, Spec §FR-011, Spec §FR-018]
@@ -72,7 +72,7 @@
 - [x] CHK019 Are primary submission, pricing, history, cancellation, and lifecycle advancement requirements complete for every user story and its stated acceptance scenarios? [Coverage, Spec §User Stories 1-4]
 - [x] CHK020 Are alternate lifecycle paths for Backordered entry and return to Processing explicitly distinguished from invalid backward transitions? [Coverage, Spec §FR-005, Spec §FR-006]
 - [x] CHK021 Are exception requirements complete for invalid quantities, unknown SKUs, empty orders, invalid contract terms, terminal cancellation, and unauthorized actor roles? [Coverage, Spec §FR-004, Spec §FR-011, Spec §FR-012, Spec §FR-014, Spec §FR-015]
-- [ ] CHK022 Are recovery requirements defined for a rejected concurrent mutation, including the information needed for a caller to reconcile the order's changed state? [Gap, Spec §FR-016]
+- [x] CHK022 Are recovery requirements defined for a rejected concurrent mutation, including the information needed for a caller to reconcile the order's changed state? [Gap, Spec §FR-016]
 - [x] CHK023 Are requirements for identity switching and client/operator context clear about how role changes affect the permitted request scope? [Coverage, Spec §FR-012, Spec §FR-019]
 
 ## Edge Case Coverage
@@ -80,12 +80,12 @@
 - [x] CHK024 Are duplicate SKU line items explicitly covered for creation, editing, Gross Total calculation, and history representation without accidental merging? [Coverage, Spec §FR-001, Spec §FR-002]
 - [x] CHK025 Are boundary conditions for quantity, discount percentage, monetary totals, and catalog validity defined, including whether zero-valued outcomes are allowed? [Gap, Spec §FR-002, Spec §FR-003, Spec §FR-014]
 - [ ] CHK026 Are simultaneous cancellation and Final Delivery requests specified for every possible commit ordering and resulting client-visible outcome? [Coverage, Spec §FR-016]
-- [ ] CHK027 Are missing, expired, and ambiguous contract terms addressed consistently during initial submission and during an editable order's recalculation? [Coverage, Spec §FR-004, Spec §FR-017, Spec §FR-025]
+- [x] CHK027 Are missing, expired, and ambiguous contract terms addressed consistently during initial submission and during an editable order's recalculation? [Coverage, Spec §FR-004, Spec §FR-017, Spec §FR-025]
 
 ## Non-Functional Requirements
 
 - [x] CHK028 Are accessibility requirements specified for the identity switcher, quantity controls, lifecycle indicator, status indicators, confirmation control, and validation messages? [Gap, Spec §FR-019, Spec §FR-022, Spec §FR-023, Spec §FR-024]
-- [ ] CHK029 Are performance requirements defined for initial pricing, edit recalculation, order history retrieval, and the stated daily submission volume rather than only initial submission? [Coverage, Spec §SC-001, Spec §SC-007]
+- [x] CHK029 Are performance requirements defined for initial pricing, edit recalculation, order history retrieval, and the stated daily submission volume rather than only initial submission? [Coverage, Spec §SC-001, Spec §SC-007]
 - [x] CHK030 Are security and privacy requirements explicit about trusted identifiers, cross-client data isolation, contract discount confidentiality, and generic not-found disclosure? [Completeness, Spec §FR-009, Spec §FR-018, Spec §SC-006]
 - [x] CHK031 Are audit-retention, timestamp precision, actor identity, and append-only history requirements sufficiently specified to support the stated reconstruction outcome? [Gap, Spec §FR-007, Spec §SC-005]
 
