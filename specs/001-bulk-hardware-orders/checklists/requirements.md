@@ -51,7 +51,7 @@
 - [x] CHK007 Is the distinction between an order being accepted in Intake and an order being finalized clearly defined? [Ambiguity, Spec §FR-001, Spec §FR-004, Spec §FR-005]
 - [x] CHK008 Are the exact calculation rules, rounding precision, currency, and treatment of zero or negative monetary results specified? [Gap, Spec §FR-002, Spec §FR-003]
 - [x] CHK009 Is "relevant dates" defined as a concrete set of timestamps for history and order detail? [Ambiguity, Spec §FR-008, Spec §FR-007]
-- [ ] CHK010 Are "clear message," "specific reason," and "generic not-found response" defined with objective content and consistent disclosure limits? [Clarity, Spec §FR-004, Spec §FR-011, Spec §FR-018]
+- [x] CHK010 Are "clear message," "specific reason," and "generic not-found response" defined with objective content and consistent disclosure limits? [Clarity, Spec §FR-004, Spec §FR-011, Spec §FR-018]
 
 ## Requirement Consistency
 
@@ -64,7 +64,7 @@
 
 - [x] CHK015 Can each success criterion be assessed using an objective threshold, observable outcome, or explicit data condition rather than an undefined quality judgment? [Acceptance Criteria, Spec §SC-001, Spec §SC-007]
 - [x] CHK016 Is the requirement for 100% pricing accuracy bounded by a defined calculation population, observation period, and rounding policy? [Measurability, Spec §SC-002]
-- [ ] CHK017 Is the three-click/step order-status outcome defined sufficiently to identify the starting point, allowed interaction scope, and completion point? [Clarity, Spec §SC-003]
+- [x] CHK017 Is the three-click/step order-status outcome defined sufficiently to identify the starting point, allowed interaction scope, and completion point? [Clarity, Spec §SC-003]
 - [x] CHK018 Are the concurrency and audit outcomes measurable with defined evidence for first-committed-wins resolution and reconstructable history? [Measurability, Spec §FR-007, Spec §FR-016, Spec §SC-005]
 
 ## Scenario Coverage
@@ -79,7 +79,7 @@
 
 - [x] CHK024 Are duplicate SKU line items explicitly covered for creation, editing, Gross Total calculation, and history representation without accidental merging? [Coverage, Spec §FR-001, Spec §FR-002]
 - [x] CHK025 Are boundary conditions for quantity, discount percentage, monetary totals, and catalog validity defined, including whether zero-valued outcomes are allowed? [Gap, Spec §FR-002, Spec §FR-003, Spec §FR-014]
-- [ ] CHK026 Are simultaneous cancellation and Final Delivery requests specified for every possible commit ordering and resulting client-visible outcome? [Coverage, Spec §FR-016]
+- [x] CHK026 Are simultaneous cancellation and Final Delivery requests specified for every possible commit ordering and resulting client-visible outcome? [Coverage, Spec §FR-016]
 - [x] CHK027 Are missing, expired, and ambiguous contract terms addressed consistently during initial submission and during an editable order's recalculation? [Coverage, Spec §FR-004, Spec §FR-017, Spec §FR-025]
 
 ## Non-Functional Requirements
@@ -98,6 +98,6 @@
 
 ## Ambiguities & Conflicts
 
-- [ ] CHK036 Is the relationship between cancellation being allowed "at any point prior to Final Delivery" and the client editability window limited to Intake or Processing explicitly reconciled? [Conflict, Spec §FR-010, Spec §FR-025]
+- [x] CHK036 Is the relationship between cancellation being allowed "at any point prior to Final Delivery" and the client editability window limited to Intake or Processing explicitly reconciled? [Conflict, Spec §FR-010, Spec §FR-025]
 - [x] CHK037 Is the actor or event that triggers the initial lifecycle record and each recalculation defined consistently with the requirement for attributable history? [Ambiguity, Spec §FR-007]
 - [x] CHK038 Is the distinction between "operator-only" lifecycle advancement and a caller-supplied, unverified operator identifier documented as an intentional demo security boundary? [Assumption, Spec §FR-012, Spec §FR-019]
