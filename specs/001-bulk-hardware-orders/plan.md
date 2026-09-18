@@ -13,8 +13,10 @@ system validates the order against a fixed catalog, computes Gross Total and, fr
 the client's currently effective pre-negotiated contract discount, a Net Total,
 blocking finalization if terms are missing/ambiguous/expired. Accepted orders are
 tracked through a defined lifecycle (Intake → Processing ⇄ Backordered → Shipped →
-Final Delivery, with Cancellation as a branch before Final Delivery), with every
-transition and every Net Total calculation recorded as append-only history. Clients
+Final Delivery, with Cancellation as a client-initiated branch available only while
+Intake, Processing, or Backordered — no longer once Shipped), with every transition
+and every Net Total calculation recorded as append-only, second-precision,
+indefinitely-retained history. Clients
 view only their own order history/detail and may cancel or edit (while still
 Intake/Processing) their own orders; operators alone advance lifecycle status.
 Concurrent conflicting writes on one order resolve first-committed-wins via
@@ -52,16 +54,25 @@ the `order-api` service and `order-portal` app; `warehouse-api`,
 `invoice-api`, and their portals are reserved directory slots for future
 features and are not scaffolded here (see `research.md` #9).
 
-**Performance Goals**: Net Total returned to the client within 5s of order
-submission (SC-001); sustain ≥500 bulk order submissions/day across all clients
-without degradation in calculation accuracy or response time (SC-007)
+**Performance Goals**: A response (calculated Net Total, recalculated totals on
+line-item edit, or the order history listing) returned to the client within 5s of
+order submission, edit, or history retrieval (SC-001, generalized 2026-09-18);
+sustain ≥500 bulk order submissions/day across all clients without degradation in
+calculation accuracy or response time (SC-007)
 
 **Constraints**: No authentication/authorization — every request carries a
 caller-supplied, trusted `X-Client-Id` or `X-Operator-Id` header (see
 `research.md` #1); concurrent conflicting order mutations resolved
-first-committed-wins via optimistic locking, loser rejected with HTTP 409
-(FR-016); Net Total locked (read-only) once an order reaches Shipped (FR-017);
-single currency, no split/partial delivery (Assumptions)
+first-committed-wins via optimistic locking, loser rejected with HTTP 409 whose
+body includes the order's current post-conflict status alongside the reason
+(FR-016; `research.md` #3); Net Total locked (read-only) once an order reaches
+Shipped (FR-017); cancellation permitted only while Intake, Processing, or
+Backordered — no longer once Shipped (FR-010, FR-011, revised 2026-09-18);
+Gross/Net Total rounded to 2 decimal places via round-half-up, with a zero or
+negative Net Total blocking order/edit finalization (FR-002, FR-003, FR-026;
+`research.md` #6); audit timestamps at whole-second precision, retained
+indefinitely (FR-007; `research.md` #13); single currency, no split/partial
+delivery (Assumptions)
 
 **Scale/Scope**: Demo/reference scale — a small fixed set of seeded enterprise
 clients and hardware catalog items (~10–20 SKUs matching the Figma catalog); 4
@@ -77,7 +88,7 @@ transitions
 |---|---|---|---|
 | I. Order Lifecycle Integrity | Order MUST progress through a single defined lifecycle; no skips, no re-entry, no silent forcing | `OrderStatus` enum + centralized allowed-transitions map enforced by `OrderLifecycleService` before every status write (`data-model.md` State Transitions; `research.md` #4) | PASS |
 | II. Contract-Driven Pricing | Net Total MUST derive exclusively from current contract terms; missing/ambiguous/expired terms block finalization, never a fallback discount | `ContractDiscountTerms` time-bounded lookup at intake and at each edit; zero or >1 matching row blocks the order (FR-004; `research.md` #6) | PASS |
-| III. Client Data Ownership & Access Boundary | Client sees/cancels only its own orders; cancellation only while Active | Every client-facing repository query filters by `client_id` from the trusted header at the data-access layer, not just the response layer; cancel endpoint checks Active status before writing (`data-model.md` Cross-Entity Invariants) | PASS |
+| III. Client Data Ownership & Access Boundary | Client sees/cancels only its own orders; cancellation only while Active | Every client-facing repository query filters by `client_id` from the trusted header at the data-access layer, not just the response layer; cancel endpoint checks status ∈ {Intake, Processing, Backordered} before writing — a feature-specific subset of Active, narrower than but compliant with the constitutional floor (`data-model.md` State Transitions, Cross-Entity Invariants) | PASS |
 | IV. Traceability & Auditability | Every transition and every Net Total calculation attributable to a time + actor; history not overwritten | Append-only `LifecycleTransition` and `NetTotalCalculation` tables, insert-only (`data-model.md`) | PASS |
 | V. Bulk Order as First-Class Unit | Lifecycle status, cancellation, delivery confirmation apply at order level, not line-item level | `status`, `net_total_locked_at`, `cancelled_at` live on `BulkOrder` only; `LineItem` carries no independent lifecycle fields (`data-model.md`) | PASS |
 

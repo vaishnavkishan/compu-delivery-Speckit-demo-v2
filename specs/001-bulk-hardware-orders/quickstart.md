@@ -51,6 +51,10 @@ ACME-001's seeded contract discount percentage (see FR-001–FR-003).
 Negative case (FR-004): repeat against a seeded client with expired/missing terms
 and confirm HTTP 422 with a clear reason, no order created.
 
+Negative case (FR-026): repeat against a seeded client/catalog combination whose
+discount percentage would drive the Net Total to zero or negative and confirm
+HTTP 422 with a clear reason, no order created.
+
 Edit case (FR-025): `PUT /api/orders/{id}/line-items` while status is `INTAKE` or
 `PROCESSING`; confirm `grossTotal`/`netTotal` change and a new `NetTotalCalculation`
 row is implied by the updated `OrderDetail` response.
@@ -62,7 +66,10 @@ curl -s http://localhost:8080/api/orders -H "X-Client-Id: ACME-001" | jq
 curl -s http://localhost:8080/api/orders -H "X-Client-Id: OTHER-CLIENT" | jq
 ```
 
-Expected: each list contains only that client's own orders (FR-008, FR-009).
+Expected: each list contains only that client's own orders (FR-008, FR-009), and
+each entry includes its line items, Gross Total, Net Total, current status, and
+full transition timeline (the Intake timestamp plus every subsequent lifecycle
+transition timestamp) — the same shape returned by the single-order detail view.
 Fetching ACME-001's order ID with `X-Client-Id: OTHER-CLIENT` on
 `GET /api/orders/{id}` returns HTTP 404 (FR-018), identical in shape to a
 nonexistent order ID.
@@ -76,6 +83,11 @@ curl -s -X POST http://localhost:8080/api/orders/{orderId}/cancel \
 
 Expected: HTTP 200, `status: "CANCELLED"`. Repeating the same call returns HTTP 409
 (FR-011). Attempting on another client's order returns HTTP 404 (FR-018).
+
+Cutoff case (FR-010, FR-011, revised 2026-09-18): advance a different order to
+`SHIPPED` (see step 6) and then attempt to cancel it; confirm HTTP 409 with a
+reason indicating the order has already shipped and can no longer be cancelled,
+and a `currentStatus` of `"SHIPPED"` in the response body.
 
 ## 6. Validate User Story 4 — operator advances lifecycle
 
@@ -93,10 +105,14 @@ transitions succeed (FR-006 exception case).
 
 ## 7. Validate FR-016 — first-committed-wins conflict
 
-Fire a cancel request and a `targetStatus: FINAL_DELIVERY` advance request for the
-same order concurrently (e.g. two parallel `curl` calls); confirm exactly one
-succeeds (HTTP 200) and the other returns HTTP 409 with a message indicating the
-order's state has changed.
+Fire a cancel request and a `targetStatus: SHIPPED` advance request for the same
+order (in Processing) concurrently (e.g. two parallel `curl` calls) — this is the
+relevant race per FR-016 as revised 2026-09-18, since a cancellation can no longer
+race against (or succeed after) an advancement to Final Delivery once the order has
+shipped. Confirm exactly one succeeds (HTTP 200) and the other returns HTTP 409 with
+a message indicating the order's state has changed, plus a `currentStatus` field
+showing the winning request's resulting status — so the loser can reconcile without
+a separate lookup.
 
 ## 8. Validate the OrderIntaken event
 

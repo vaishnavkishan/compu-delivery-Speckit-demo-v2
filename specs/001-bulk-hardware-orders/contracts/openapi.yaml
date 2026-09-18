@@ -38,13 +38,22 @@ components:
   schemas:
     ProblemDetail:
       type: object
-      description: RFC 7807 problem details, as produced by Spring's ProblemDetail.
+      description: >
+        RFC 7807 problem details, as produced by Spring's ProblemDetail, plus a
+        `currentStatus` extension member populated on 409 conflict responses
+        (FR-016) so the rejected caller learns the order's post-conflict
+        lifecycle status without a separate lookup.
       properties:
         type: { type: string, format: uri }
         title: { type: string }
         status: { type: integer }
         detail: { type: string }
         instance: { type: string, format: uri }
+        currentStatus:
+          allOf: [{ $ref: '#/components/schemas/OrderStatus' }]
+          description: >
+            Present only on FR-016 first-committed-wins conflict responses: the
+            order's current lifecycle status after the winning request committed.
 
     HardwareCatalogItem:
       type: object
@@ -120,16 +129,6 @@ components:
               type: array
               items: { $ref: '#/components/schemas/LifecycleTransition' }
 
-    OrderSummary:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        status: { $ref: '#/components/schemas/OrderStatus' }
-        netTotal: { type: number, format: decimal }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-      required: [id, status, netTotal, createdAt, updatedAt]
-
     CreateOrderRequest:
       type: object
       properties:
@@ -204,12 +203,18 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
         '422':
-          description: Client's contract discount terms are missing, ambiguous, or expired (FR-004).
+          description: >
+            Client's contract discount terms are missing, ambiguous, or expired
+            (FR-004), or the calculated Net Total is zero or negative (FR-026).
+            In both cases no order record is created or retrievable.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
     get:
-      summary: View own order history (FR-008, FR-009)
+      summary: >
+        View own order history (FR-008, FR-009) — each entry includes line
+        items, Gross Total, Net Total, current status, and its full transition
+        timeline, the same shape as a single order's detail view.
       operationId: listOrders
       parameters:
         - $ref: '#/components/parameters/ClientIdHeader'
@@ -220,7 +225,7 @@ paths:
             application/json:
               schema:
                 type: array
-                items: { $ref: '#/components/schemas/OrderSummary' }
+                items: { $ref: '#/components/schemas/OrderDetail' }
 
   /orders/{orderId}:
     get:
@@ -276,7 +281,16 @@ paths:
         '409':
           description: >
             Order is no longer editable (past Processing) or was concurrently
-            modified (FR-016, FR-017, FR-025).
+            modified (FR-016, FR-017, FR-025). Includes `currentStatus`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '422':
+          description: >
+            At edit time, the client's contract discount terms are missing,
+            ambiguous, or expired, or the recalculated Net Total would be zero
+            or negative (FR-025, FR-026). The order's line items and last
+            successfully calculated Net Total are left unchanged.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
@@ -301,8 +315,11 @@ paths:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
         '409':
           description: >
-            Order already at Final Delivery, already Cancelled, or lost a
-            first-committed-wins race against another change (FR-011, FR-016).
+            Order has already reached Shipped or Final Delivery, is already
+            Cancelled, or lost a first-committed-wins race against an
+            operator's advancement to Shipped (FR-010, FR-011, FR-016,
+            revised 2026-09-18 — Shipped orders can no longer be cancelled).
+            Includes `currentStatus`.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
@@ -334,7 +351,7 @@ paths:
           description: >
             Requested transition is not a valid next step (skip, backward
             move, or transition from a terminal state), or lost a
-            first-committed-wins race (FR-006, FR-016).
+            first-committed-wins race (FR-006, FR-016). Includes `currentStatus`.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }

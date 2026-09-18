@@ -43,12 +43,16 @@ Time-bounded, client-specific discount used exclusively to compute Net Total.
 | `created_at` | `timestamptz` | |
 
 **Validation rules**:
-- "Current" terms for a client = the row where `effective_from <= now()` and
-  (`effective_until IS NULL OR effective_until >= now()`).
+- Each client has exactly one active Contract Discount Terms record at any given
+  time by design (spec Key Entities) — there is no selection logic among multiple
+  concurrent records. "Current" terms for a client = the row where
+  `effective_from <= now()` and (`effective_until IS NULL OR effective_until >= now()`).
 - Zero matching rows → contract terms missing/expired → block order (FR-004).
-- More than one matching row → ambiguous → block order (FR-004). Application-level
-  invariant (not a DB constraint) enforced at order-submission time, since seed data
-  is curated and this is a demo; documented as a known simplification.
+- More than one matching row → ambiguous → block order (FR-004), even though the
+  data model does not expect this to occur given the one-active-record design; this
+  remains an application-level invariant (not a DB constraint) checked at
+  order-submission/edit time as defense-in-depth, since seed data is curated and
+  this is a demo — documented as a known simplification.
 
 ## BulkOrder
 
@@ -59,9 +63,9 @@ The order as a whole; single source of lifecycle status, aggregate pricing.
 | `id` | `uuid` (PK) | |
 | `client_id` | `varchar` (FK → EnterpriseClient) | Owning client; all queries scoped by this (FR-009). |
 | `status` | `varchar`/enum | `INTAKE, PROCESSING, BACKORDERED, SHIPPED, FINAL_DELIVERY, CANCELLED`. |
-| `gross_total` | `numeric(12,2)` | Sum of line item subtotals as submitted (FR-002). |
+| `gross_total` | `numeric(12,2)` | Sum of line item subtotals as submitted, rounded to 2 decimal places using round-half-up (FR-002). |
 | `applied_discount_percentage` | `numeric(5,2)` | Snapshot of the contract discount used for the current `net_total` (Constitution IV). |
-| `net_total` | `numeric(12,2)` | `gross_total * (1 - applied_discount_percentage/100)`. |
+| `net_total` | `numeric(12,2)` | `gross_total * (1 - applied_discount_percentage/100)`, rounded to 2 decimal places using round-half-up (FR-003). |
 | `net_total_locked_at` | `timestamptz`, nullable | Set when status transitions to `SHIPPED`; once set, line items and totals are read-only (FR-017). |
 | `version` | `bigint` | JPA `@Version` — optimistic lock for first-committed-wins (FR-016). |
 | `created_at` | `timestamptz` | Intake time. |
@@ -70,10 +74,18 @@ The order as a whole; single source of lifecycle status, aggregate pricing.
 
 **Validation rules**:
 - MUST have ≥1 LineItem to be created (FR-015).
+- If the calculated `net_total` is zero or negative, the order is rejected using the
+  same block pattern as missing/expired contract terms (FR-004): no `BulkOrder` row
+  is persisted, and the order is not retrievable by any ID afterward (FR-026).
 - `status` transitions only via the allowed-transitions map (FR-006; see State
   Transitions below).
 - Line items and `gross_total`/`net_total` are mutable only while `status IN
   (INTAKE, PROCESSING)` (FR-025); immutable once `net_total_locked_at` is set.
+- An edit (line-item replace) is rejected — leaving the order's existing line items,
+  `gross_total`, and `net_total` unchanged — if, at edit time, the client's contract
+  discount terms are missing, ambiguous, or expired, or the recalculated `net_total`
+  would be zero or negative; no new `NetTotalCalculation` row is inserted for a
+  rejected edit (FR-025, FR-026).
 
 **State Transitions** (FR-005, FR-006, edge case on Backordered):
 
@@ -83,12 +95,15 @@ INTAKE ──▶ PROCESSING ──▶ SHIPPED ──▶ FINAL_DELIVERY  (termina
               ▼  │
           BACKORDERED
 
-INTAKE, PROCESSING, BACKORDERED, SHIPPED ──▶ CANCELLED  (terminal, client-initiated only)
+INTAKE, PROCESSING, BACKORDERED ──▶ CANCELLED  (terminal, client-initiated only)
 ```
 
 - Forward progression (`INTAKE→PROCESSING→SHIPPED→FINAL_DELIVERY`) and the
   `PROCESSING↔BACKORDERED` reversal are operator-initiated (FR-012).
-- Cancellation is client-initiated (FR-010) and valid from any non-terminal state.
+- Cancellation is client-initiated (FR-010) and valid only while `status IN
+  (INTAKE, PROCESSING, BACKORDERED)`; once an order reaches `SHIPPED` it can no
+  longer be cancelled by the client, even though `SHIPPED` is not itself terminal
+  (FR-010, FR-011, revised 2026-09-18).
 - `FINAL_DELIVERY` and `CANCELLED` are terminal — no further transitions accepted
   (FR-006, acceptance scenarios in User Story 4).
 
@@ -136,10 +151,11 @@ Append-only history of every status change.
 | `to_status` | `varchar`/enum | |
 | `actor_type` | `varchar`/enum | `CLIENT`, `OPERATOR`, or `SYSTEM`. |
 | `actor_id` | `varchar` | The caller-supplied client/operator identifier, or `SYSTEM` for the initial intake row. |
-| `occurred_at` | `timestamptz` | |
+| `occurred_at` | `timestamptz` | Truncated to whole-second precision. |
 
-**Validation rules**: rows are never updated or deleted after insert (FR-007,
-Constitution IV).
+**Validation rules**: rows are never updated or deleted after insert and are
+retained indefinitely — no purge or archival job runs against this table within
+this feature's scope (FR-007, Constitution IV).
 
 ## NetTotalCalculation
 
@@ -155,10 +171,13 @@ subsequent line-item-edit recalculation).
 | `net_total` | `numeric(12,2)` | |
 | `trigger` | `varchar`/enum | `INTAKE` or `LINE_ITEM_EDIT`. |
 | `actor_id` | `varchar` | Client identifier that triggered the calculation. |
-| `occurred_at` | `timestamptz` | |
+| `occurred_at` | `timestamptz` | Truncated to whole-second precision. |
 
-**Validation rules**: rows are never updated or deleted after insert (FR-007,
-FR-017, FR-025).
+**Validation rules**: rows are never updated or deleted after insert and are
+retained indefinitely — no purge or archival job runs against this table within
+this feature's scope (FR-007, FR-017, FR-025). No row is inserted for a rejected
+calculation (missing/expired terms or a zero/negative result) — see BulkOrder
+validation rules above (FR-004, FR-025, FR-026).
 
 ## CancellationRecord
 
@@ -186,3 +205,17 @@ a second cancellation attempt is rejected before a second record could be create
   having the repository query include `client_id` in its `WHERE` clause so "not
   mine" and "doesn't exist" are indistinguishable at the data-access layer, not
   just at the response-formatting layer.
+- A rejected order submission or line-item edit (invalid line items, missing/
+  ambiguous/expired contract terms, or a zero/negative Net Total) writes nothing:
+  no `BulkOrder`, `LineItem`, `LifecycleTransition`, or `NetTotalCalculation` row is
+  persisted, and — for a rejected initial submission — the order is not retrievable
+  by any ID; a rejected edit leaves the order's prior state exactly as it was
+  (FR-004, FR-015, FR-025, FR-026).
+- A rejected request under FR-016's first-committed-wins rule returns, alongside
+  the conflict reason, the order's current (post-conflict) lifecycle status read in
+  the same transaction as the rejection, so the caller never needs a separate
+  lookup to reconcile (FR-016; see `contracts/openapi.yaml` `ProblemDetail.currentStatus`).
+- An order history/list response (FR-008) returns each order's line items, Gross
+  Total, Net Total, current status, and full transition timeline in one payload —
+  the same shape as an order detail response (`contracts/openapi.yaml` `OrderDetail`)
+  — rather than a thinner summary that would omit the transition timeline.

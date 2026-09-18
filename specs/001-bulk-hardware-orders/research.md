@@ -43,7 +43,12 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
   operation (cancel, advance status, edit line items) loads the order, applies the
   change, and saves within a single transaction. A concurrent conflicting write raises
   `OptimisticLockException`, which a `@ControllerAdvice` maps to HTTP 409 with a
-  Problem Details body stating the order's state has changed.
+  Problem Details body stating the order's state has changed. The advice re-reads the
+  order's now-current status within the same handler (a plain, non-versioned read
+  after the losing write fails) and includes it as a `currentStatus` extension member
+  on the Problem Details body, so the rejected caller gets the reason and the order's
+  post-conflict status in one response without a follow-up lookup (FR-016, clarified
+  2026-09-18).
 - **Rationale**: Optimistic locking is the standard Spring Data JPA / PostgreSQL
   mechanism for exactly this "whoever commits first wins, the other is rejected"
   semantics, with no extra locking service required.
@@ -60,8 +65,10 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
   in a domain service (`OrderLifecycleService`) before any status write:
   `INTAKE→PROCESSING`, `PROCESSING→BACKORDERED`, `BACKORDERED→PROCESSING`,
   `PROCESSING→SHIPPED`, `SHIPPED→FINAL_DELIVERY`, and `{INTAKE, PROCESSING,
-  BACKORDERED, SHIPPED}→CANCELLED` (client-initiated only). Any transition not in the
-  map is rejected with 409/422 and a clear message.
+  BACKORDERED}→CANCELLED` (client-initiated only; `SHIPPED` is deliberately excluded
+  — once an order ships, the client can no longer cancel it, per FR-010/FR-011 as
+  revised 2026-09-18, even though `SHIPPED` itself is not a terminal status). Any
+  transition not in the map is rejected with 409/422 and a clear message.
 - **Rationale**: Centralizing the transition table is the simplest way to guarantee
   FR-006 (no skips, no backward moves, no post-terminal changes) except the one
   explicitly allowed reversal (Backordered→Processing), and keeps Constitution
@@ -77,12 +84,22 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
   `INTAKE`/`PROCESSING`, `PUT /api/orders/{id}/line-items` replaces the full line-item
   set and recomputes Gross Total and Net Total from the client's *currently effective*
   contract discount terms, writing a new row to `net_total_calculation` (never
-  updating a prior row) per FR-007/Constitution Principle IV.
+  updating a prior row) per FR-007/Constitution Principle IV. If, at the moment of
+  that recalculation, the client's contract terms are missing/ambiguous/expired, or
+  the recalculated Net Total would be zero or negative, the whole edit is rejected in
+  the same transaction (HTTP 409/422 with a clear reason): the order's existing line
+  items and last successfully calculated Net Total are left exactly as they were, and
+  no `net_total_calculation` row is written for the rejected attempt (FR-025, FR-026,
+  clarified 2026-09-18).
 - **Rationale**: Directly implements the FR-017 lock semantics and keeps
-  recalculation append-only and traceable.
+  recalculation append-only and traceable, while treating a failed edit as a no-op on
+  persisted state rather than a partial write.
 - **Alternatives considered**: Locking at intake (original spec wording) — superseded
   by the 2026-08-17 clarification; recalculating net total automatically whenever
-  contract terms change — explicitly rejected by the spec (Edge Cases, FR-017).
+  contract terms change — explicitly rejected by the spec (Edge Cases, FR-017);
+  persisting the edit's new line items while leaving the prior Net Total in place when
+  terms are invalid — rejected because it would let line items and Net Total drift out
+  of sync, contradicting Constitution Principle II.
 
 ## 6. Contract discount terms modeling
 
@@ -94,14 +111,31 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
   (FR-004).
   Each accepted order snapshots the discount percentage actually applied (on the order
   row and again on each `net_total_calculation` row) so later contract renegotiation
-  never retroactively changes a locked order's history.
+  never retroactively changes a locked order's history. The design assumes exactly one
+  active terms record per client (spec Key Entities) — no selection logic among
+  multiple concurrent records is implemented; the zero/more-than-one-row check exists
+  purely as a defense-in-depth block, not a selection mechanism.
+  Gross Total and Net Total are both computed with `BigDecimal` and rounded to 2
+  decimal places using `RoundingMode.HALF_UP` (round-half-up, i.e. standard currency
+  cents) per FR-002/FR-003. If the rounded Net Total is zero or negative, the order
+  (or, for an edit, the recalculation) is rejected using the identical block pattern as
+  missing/expired contract terms (FR-004, FR-026) — the submission or edit fails
+  atomically and no order/edit row is persisted (see #5 for the edit case).
 - **Rationale**: A time-bounded terms table is the simplest model that supports
   "expired", "not yet effective", and "ambiguous/overlapping" without a status enum
-  that could drift from the dates.
+  that could drift from the dates. `BigDecimal`/`HALF_UP` is the standard
+  Java pattern for currency rounding and matches the spec's explicit rounding rule
+  exactly, avoiding floating-point drift. Blocking on zero/negative Net Total keeps
+  pricing failures uniform with the existing FR-004 rejection path rather than adding
+  a second error shape.
 - **Alternatives considered**: A single mutable `discount_percentage` column on
   `enterprise_client` with no history — rejected because it can't represent
   "expired" (FR-004) or preserve what was actually applied at calculation time
-  (Constitution Principle IV).
+  (Constitution Principle IV). `double`/`float` arithmetic for totals — rejected due to
+  well-known binary floating-point rounding error in currency math. Rounding modes
+  other than `HALF_UP` (e.g. `HALF_EVEN`/banker's rounding) — rejected; the spec
+  explicitly specifies round-half-up. Silently clamping a zero/negative Net Total to
+  zero — rejected; the spec requires blocking finalization instead.
 
 ## 7. OrderIntaken event publishing (RabbitMQ)
 
@@ -225,3 +259,19 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
   (original decision, pre-2026-08-19) — superseded because it would force
   warehouse/invoice services to be built and deployed as one unit with order-api
   once they exist, defeating the point of a services-oriented monorepo.
+
+## 13. Audit trail timestamp precision and retention (FR-007)
+
+- **Decision**: `occurred_at`/`created_at`-style audit columns on
+  `LifecycleTransition` and `NetTotalCalculation` are `timestamptz` truncated to
+  whole-second precision at write time (`Instant.now().truncatedTo(ChronoUnit.SECONDS)`
+  in the application layer, rather than relying on column-level truncation). No
+  purge, archival, or retention-window job is implemented for either table within
+  this feature's scope — rows persist indefinitely once written.
+- **Rationale**: Matches the spec's explicit clarification (second precision,
+  retained indefinitely) with the simplest possible mechanism — no scheduled job, no
+  TTL, no partitioning — appropriate for a demo-scale append-only audit trail.
+- **Alternatives considered**: Millisecond/microsecond precision (Postgres
+  `timestamptz` default) — rejected as more precision than the spec calls for and a
+  needless source of flaky-looking test assertions; a scheduled archival/purge job —
+  rejected, explicitly out of scope per the spec's "retained indefinitely" answer.
