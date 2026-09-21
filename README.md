@@ -195,3 +195,18 @@ The generated checklist is appended to
 ```
 /speckit-checklist
 ```
+
+Checklist items it produces are checks against the spec, not against the checklist itself — each
+unchecked item means the spec doesn't yet clearly answer that question, not that the checklist
+needs editing. `/speckit-clarify` is what actually resolves them: re-running it re-reads the
+checklist, asks targeted questions about the still-unchecked items, encodes accepted answers back
+into `spec.md`, and re-validates the checklist, flipping items to checked as the spec closes each
+gap.
+
+`/speckit-clarify` only asks up to 5 questions per run, so a checklist with more than 5 unchecked
+items needs more than one pass. Repeat `/speckit-clarify` until every item in
+`specs/001-bulk-hardware-orders/checklists/requirements.md` is checked:
+
+```
+/speckit-clarify
+```
