@@ -37,6 +37,10 @@ order that failed to persist).
 }
 ```
 
+`netTotal` reflects the same full-precision-then-round-half-up policy used to
+compute the persisted value (FR-003; `research.md` #13) — the event never
+carries an independently-rounded figure.
+
 | Field | Type | Notes |
 |---|---|---|
 | `eventType` | string | Always `"OrderIntaken"`; future event types share this envelope shape. |

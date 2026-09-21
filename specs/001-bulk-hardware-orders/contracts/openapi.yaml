@@ -27,6 +27,26 @@ components:
       description: Caller-supplied operator identifier (trusted as-is).
       schema:
         type: string
+    OperatorIdHeaderOptional:
+      name: X-Operator-Id
+      in: header
+      required: false
+      description: >
+        Present only when an operator, viewing the client selected in the
+        identity switcher's client/company selector, is reading that
+        client's orders rather than a client reading its own (FR-026). Does
+        not widen the read beyond the client named by X-Client-Id.
+      schema:
+        type: string
+    PageQuery:
+      name: page
+      in: query
+      required: false
+      description: 0-based page number; each page holds at most 25 orders (FR-008).
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
     OrderId:
       name: orderId
       in: path
@@ -45,6 +65,19 @@ components:
         status: { type: integer }
         detail: { type: string }
         instance: { type: string, format: uri }
+
+    ConflictProblemDetail:
+      description: >
+        A 409 response for a first-committed-wins rejection (FR-016). Extends
+        ProblemDetail with the order's now-current lifecycle status, re-read
+        after the conflicting write lost, so the caller sees the actual
+        outcome without a separate lookup.
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetail'
+        - type: object
+          properties:
+            currentStatus: { $ref: '#/components/schemas/OrderStatus' }
+          required: [currentStatus]
 
     HardwareCatalogItem:
       type: object
@@ -66,7 +99,11 @@ components:
       type: object
       properties:
         sku: { type: string }
-        quantity: { type: integer, minimum: 1 }
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          description: Rejected above 10,000 units (FR-014).
       required: [sku, quantity]
 
     LineItem:
@@ -136,6 +173,8 @@ components:
         lineItems:
           type: array
           minItems: 1
+          maxItems: 100
+          description: Rejected above 100 line items (FR-030).
           items: { $ref: '#/components/schemas/LineItemInput' }
       required: [lineItems]
 
@@ -145,6 +184,8 @@ components:
         lineItems:
           type: array
           minItems: 1
+          maxItems: 100
+          description: Rejected above 100 line items (FR-030).
           items: { $ref: '#/components/schemas/LineItemInput' }
       required: [lineItems]
 
@@ -153,6 +194,22 @@ components:
       properties:
         targetStatus: { $ref: '#/components/schemas/OrderStatus' }
       required: [targetStatus]
+
+    OrderHistoryPage:
+      description: >
+        A bounded, newest-first page of the caller's own orders (FR-008).
+        `hasMore` tells the frontend whether to render the "reach older
+        entries" control without a separate count call.
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/OrderSummary' }
+        page: { type: integer, minimum: 0 }
+        pageSize: { type: integer, enum: [25] }
+        totalCount: { type: integer }
+        hasMore: { type: boolean }
+      required: [items, page, pageSize, totalCount, hasMore]
 
 paths:
   /demo-identities:
@@ -183,7 +240,7 @@ paths:
 
   /orders:
     post:
-      summary: Submit a bulk hardware order (FR-001–FR-004, FR-014, FR-015)
+      summary: Submit a bulk hardware order (FR-001–FR-004, FR-014, FR-015, FR-030)
       operationId: createOrder
       parameters:
         - $ref: '#/components/parameters/ClientIdHeader'
@@ -199,36 +256,50 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/OrderDetail' }
         '400':
-          description: Invalid line items (zero/negative quantity, unknown SKU, empty order).
+          description: >
+            Invalid line items — zero/negative quantity, quantity above
+            10,000, unknown SKU, empty order, or more than 100 line items
+            (FR-014, FR-015, FR-030); no order is created.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
         '422':
-          description: Client's contract discount terms are missing, ambiguous, or expired (FR-004).
+          description: >
+            Client's contract discount terms are missing, ambiguous, or
+            expired (FR-004) — including a discount percentage not strictly
+            between 0% and 100%. No BulkOrder or LineItem row is created for
+            this rejection.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
     get:
-      summary: View own order history (FR-008, FR-009)
+      summary: >
+        View own order history, newest-first, paged at 25 entries (FR-008,
+        FR-009). An operator may pass X-Operator-Id alongside X-Client-Id to
+        view the selected client's history instead (FR-026).
       operationId: listOrders
       parameters:
         - $ref: '#/components/parameters/ClientIdHeader'
+        - $ref: '#/components/parameters/OperatorIdHeaderOptional'
+        - $ref: '#/components/parameters/PageQuery'
       responses:
         '200':
-          description: OK — only the caller's own orders.
+          description: OK — one newest-first page of only the named client's orders.
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/OrderSummary' }
+              schema: { $ref: '#/components/schemas/OrderHistoryPage' }
 
   /orders/{orderId}:
     get:
-      summary: View own order detail (FR-008, FR-009, FR-018)
+      summary: >
+        View own order detail (FR-008, FR-009, FR-018). An operator may pass
+        X-Operator-Id alongside X-Client-Id to view the selected client's
+        order instead (FR-026).
       operationId: getOrder
       parameters:
         - $ref: '#/components/parameters/OrderId'
         - $ref: '#/components/parameters/ClientIdHeader'
+        - $ref: '#/components/parameters/OperatorIdHeaderOptional'
       responses:
         '200':
           description: OK
@@ -247,7 +318,8 @@ paths:
     put:
       summary: >
         Replace an order's line items while it is Intake or Processing;
-        recalculates Gross Total and Net Total (FR-025).
+        recalculates Gross Total and Net Total using currently effective
+        contract terms (FR-025, FR-014, FR-030).
       operationId: replaceOrderLineItems
       parameters:
         - $ref: '#/components/parameters/OrderId'
@@ -264,7 +336,19 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/OrderDetail' }
         '400':
-          description: Invalid line items.
+          description: >
+            Invalid line items — zero/negative quantity, quantity above
+            10,000, unknown SKU, empty list, or more than 100 line items
+            (FR-014, FR-030); the order's existing line items and totals are
+            left unchanged.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '422':
+          description: >
+            Client's contract discount terms are missing, ambiguous, or
+            expired at the moment of the edit (FR-004, FR-025); the order's
+            existing line items and last-valid totals are left unchanged.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
@@ -276,10 +360,11 @@ paths:
         '409':
           description: >
             Order is no longer editable (past Processing) or was concurrently
-            modified (FR-016, FR-017, FR-025).
+            modified — in the latter case the body includes the order's
+            now-current status (FR-016, FR-017, FR-025).
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ProblemDetail' }
+              schema: { $ref: '#/components/schemas/ConflictProblemDetail' }
 
   /orders/{orderId}/cancel:
     post:
@@ -302,10 +387,11 @@ paths:
         '409':
           description: >
             Order already at Final Delivery, already Cancelled, or lost a
-            first-committed-wins race against another change (FR-011, FR-016).
+            first-committed-wins race against another change; the body
+            includes the order's now-current status (FR-011, FR-016).
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ProblemDetail' }
+              schema: { $ref: '#/components/schemas/ConflictProblemDetail' }
 
   /orders/{orderId}/status:
     post:
@@ -334,7 +420,8 @@ paths:
           description: >
             Requested transition is not a valid next step (skip, backward
             move, or transition from a terminal state), or lost a
-            first-committed-wins race (FR-006, FR-016).
+            first-committed-wins race; the body includes the order's
+            now-current status (FR-006, FR-016).
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ProblemDetail' }
+              schema: { $ref: '#/components/schemas/ConflictProblemDetail' }

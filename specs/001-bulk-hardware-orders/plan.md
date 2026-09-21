@@ -1,6 +1,6 @@
 # Implementation Plan: Bulk Hardware Order Management
 
-**Branch**: `001-bulk-hardware-orders` | **Date**: 2026-08-18 | **Spec**: [spec.md](./spec.md)
+**Branch**: `001-bulk-hardware-orders` | **Date**: 2026-09-21 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/001-bulk-hardware-orders/spec.md`
 
@@ -18,12 +18,18 @@ transition and every Net Total calculation recorded as append-only history. Clie
 view only their own order history/detail and may cancel or edit (while still
 Intake/Processing) their own orders; operators alone advance lifecycle status.
 Concurrent conflicting writes on one order resolve first-committed-wins via
-optimistic locking. A Spring Boot 3.5/Java 25 REST API backed by PostgreSQL 17
-implements the domain and publishes an `OrderIntaken` event to RabbitMQ on order
-creation; a React 19/TypeScript/Vite/Tailwind portal (dashboard + order
-detail/create pages, per the reviewed Figma reference design) provides the
-enterprise-client- and operator-facing UI, with no login — a demo identity
-switcher supplies the trusted caller identity per request.
+optimistic locking. Line item quantities are capped at 10,000 units and orders at 100 line items;
+Order History is paged newest-first at 25 entries per page; Net Total's
+discount arithmetic is carried at full precision with only the final figure
+rounded half-up to 2 decimals. A Spring Boot 3.5/Java 25 REST API backed by
+PostgreSQL 17 implements the domain and publishes an `OrderIntaken` event to
+RabbitMQ on order creation; a React 19/TypeScript/Vite/Tailwind portal
+(dashboard + order detail/create pages, per the reviewed Figma reference
+design) provides the enterprise-client- and operator-facing UI, with no
+login — a demo identity switcher (seeded with clients covering every
+contract-terms state plus an operator identity) supplies the trusted caller
+identity per request, and each order region shows an explicit empty, loading,
+or error state rather than a blank area.
 
 ## Technical Context
 
@@ -53,21 +59,36 @@ the `order-api` service and `order-portal` app; `warehouse-api`,
 features and are not scaffolded here (see `research.md` #9).
 
 **Performance Goals**: Net Total returned to the client within 5s of order
-submission (SC-001); sustain ≥500 bulk order submissions/day across all clients
-without degradation in calculation accuracy or response time (SC-007)
+submission, of a Line Item edit's recalculation, and of retrieving any single
+page of Order History (SC-001); sustain ≥500 bulk order submissions/day across
+all clients without degradation in calculation accuracy or response time
+(SC-007)
 
 **Constraints**: No authentication/authorization — every request carries a
 caller-supplied, trusted `X-Client-Id` or `X-Operator-Id` header (see
-`research.md` #1); concurrent conflicting order mutations resolved
-first-committed-wins via optimistic locking, loser rejected with HTTP 409
-(FR-016); Net Total locked (read-only) once an order reaches Shipped (FR-017);
-single currency, no split/partial delivery (Assumptions)
+`research.md` #1); an operator additionally supplies `X-Client-Id` for the
+client company currently selected in the identity switcher when viewing or
+acting on that client's orders (FR-026; `research.md` #1); concurrent
+conflicting order mutations resolved first-committed-wins via optimistic
+locking, loser rejected with HTTP 409 including the order's now-current
+lifecycle status (FR-016; `research.md` #3); Net Total locked (read-only)
+once an order reaches Shipped (FR-017); Gross Total and the discount
+calculation carried at full precision with only the final Net Total rounded,
+half-up, to 2 decimal places (FR-003; `research.md` #13); a line item quantity
+above 10,000 units or an order with more than 100 line items is rejected
+(FR-014, FR-030); Order History is paged newest-first at 25 entries per page
+(FR-008; `research.md` #14); lifecycle/pricing history is retained
+indefinitely with timestamps to at least 1-second precision (FR-007); single
+currency, no split/partial delivery (Assumptions)
 
 **Scale/Scope**: Demo/reference scale — a small fixed set of seeded enterprise
-clients and hardware catalog items (~10–20 SKUs matching the Figma catalog); 4
-user stories (submit & price, view history, cancel, operator lifecycle
-advancement) across a two-page enterprise-client portal plus operator status
-transitions
+clients and hardware catalog items (~10–20 SKUs matching the Figma catalog),
+with the client roster covering every contract-terms state required by
+FR-027 (two clients with valid but differing discounts, one missing, one
+expired, one ambiguous, plus one operator identity); 4 user stories (submit &
+price, view history, cancel, operator lifecycle advancement) across a
+two-page enterprise-client portal plus operator status transitions, with
+explicit empty/loading/error states for each order region (FR-028, FR-029)
 
 ## Constitution Check
 
@@ -77,7 +98,7 @@ transitions
 |---|---|---|---|
 | I. Order Lifecycle Integrity | Order MUST progress through a single defined lifecycle; no skips, no re-entry, no silent forcing | `OrderStatus` enum + centralized allowed-transitions map enforced by `OrderLifecycleService` before every status write (`data-model.md` State Transitions; `research.md` #4) | PASS |
 | II. Contract-Driven Pricing | Net Total MUST derive exclusively from current contract terms; missing/ambiguous/expired terms block finalization, never a fallback discount | `ContractDiscountTerms` time-bounded lookup at intake and at each edit; zero or >1 matching row blocks the order (FR-004; `research.md` #6) | PASS |
-| III. Client Data Ownership & Access Boundary | Client sees/cancels only its own orders; cancellation only while Active | Every client-facing repository query filters by `client_id` from the trusted header at the data-access layer, not just the response layer; cancel endpoint checks Active status before writing (`data-model.md` Cross-Entity Invariants) | PASS |
+| III. Client Data Ownership & Access Boundary | Client sees/cancels only its own orders; cancellation only while Active | Every client-facing repository query — including an operator's client-scoped read (FR-026) — filters by `client_id` from the trusted header at the data-access layer, not just the response layer; cancel endpoint checks Active status before writing (`data-model.md` Cross-Entity Invariants) | PASS |
 | IV. Traceability & Auditability | Every transition and every Net Total calculation attributable to a time + actor; history not overwritten | Append-only `LifecycleTransition` and `NetTotalCalculation` tables, insert-only (`data-model.md`) | PASS |
 | V. Bulk Order as First-Class Unit | Lifecycle status, cancellation, delivery confirmation apply at order level, not line-item level | `status`, `net_total_locked_at`, `cancelled_at` live on `BulkOrder` only; `LineItem` carries no independent lifecycle fields (`data-model.md`) | PASS |
 
@@ -92,7 +113,12 @@ settlement — confirmed out of scope per spec Assumptions and user input's
 were designed to satisfy the gate table above directly — each row's "Design
 mechanism" column cites the concrete Phase 1 artifact enforcing it — rather than
 being reconciled afterward. No new violations were introduced during design; all
-five gates remain PASS.
+five gates remain PASS. Re-checked 2026-09-21 after refreshing Phase 0/1
+artifacts against the spec's later clarification rounds (FR-025–FR-030:
+rounding, History pagination, quantity/line-item ceilings, operator
+client-scoped viewing, seeded identity roster, empty/loading/error states) —
+each is a refinement of an existing gate's mechanism, not a new concern, and
+all five gates remain PASS.
 
 ## Project Structure
 

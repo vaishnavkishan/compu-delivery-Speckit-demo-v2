@@ -174,3 +174,57 @@ scope as reserved directories.
 ```
 /speckit-plan this is going to be a mono repo setup and will include order, warehouse and invoice apis and frontend
 ```
+
+### 5. Generate a requirements checklist (`/speckit-checklist`, branch 05-speckit-checklist)
+
+Creates a requirements-quality checklist for the feature. The checklist acts as "unit tests for
+English": it evaluates whether requirements are complete, clear, consistent, measurable, and
+ready for implementation. It does not test application behavior or implementation details.
+
+Reviewer can open the generated checklist file in an editor. Add missing edge cases, modify vague criteria, or delete irrelevant checks.
+
+The generated checklist is appended to
+`specs/001-bulk-hardware-orders/checklists/requirements.md` and covers:
+
+- Requirement completeness and clarity
+- Pricing, lifecycle, concurrency, and data-ownership consistency
+- Acceptance criteria and scenario coverage
+- Edge cases, non-functional requirements, dependencies, and assumptions
+- Ambiguities and conflicts that still need resolution
+
+```
+/speckit-checklist
+```
+
+Checklist items it produces are checks against the spec, not against the checklist itself — each
+unchecked item means the spec doesn't yet clearly answer that question, not that the checklist
+needs editing. `/speckit-clarify` is what actually resolves them: re-running it re-reads the
+checklist, asks targeted questions about the still-unchecked items, encodes accepted answers back
+into `spec.md`, and re-validates the checklist, flipping items to checked as the spec closes each
+gap.
+
+`/speckit-clarify` only asks up to 5 questions per run, so a checklist with more than 5 unchecked
+items needs more than one pass. Repeat `/speckit-clarify` until every item in
+`specs/001-bulk-hardware-orders/checklists/requirements.md` is checked:
+
+```
+/speckit-clarify
+```
+
+Two clarify sessions closed out the checklist for this feature: `770624a` (two
+`/speckit-clarify` runs, 10 questions, resolving discount bounds, rounding precision, audit
+history timestamps/retention, and other checklist gaps) and `8d13153` (one more
+`/speckit-clarify` run, 5 questions, resolving operator UI surface, demo seed data,
+empty/loading states, history paging, and quantity limits).
+
+Those checklist-driven clarify rounds updated `spec.md` (FR-025–FR-030 and related Edge
+Cases/Key Entities) after the plan artifacts from Step 4 had already been generated, so
+`plan.md`, `research.md`, `data-model.md`, `contracts/`, and `quickstart.md` no longer
+reflected the current spec. Re-running `/speckit-plan` (`aec06f4`) picked this drift up and
+refreshed those artifacts in place — rounding policy, Order History pagination,
+quantity/line-item ceilings, operator client-scoped viewing, the seeded identity roster, and
+empty/loading/error states — without starting the plan over from scratch:
+
+```
+/speckit-plan
+```

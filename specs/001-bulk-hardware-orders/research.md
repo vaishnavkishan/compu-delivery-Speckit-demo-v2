@@ -3,50 +3,91 @@
 All technology choices were supplied directly by the user (see `plan.md` Technical
 Context), so no NEEDS CLARIFICATION markers remain for stack selection. Research below
 resolves the *implementation-pattern* decisions needed to apply that stack correctly
-against the spec's requirements (FR-001–FR-025) and constitution gates.
+against the spec's requirements (FR-001–FR-030) and constitution gates.
 
 ## 1. Caller-supplied identity (no auth)
 
-- **Decision**: A servlet `OncePerRequestFilter` reads one of two mutually exclusive
-  request headers — `X-Client-Id` (enterprise-client-facing endpoints) or
-  `X-Operator-Id` (operator-facing endpoints) — resolves it against the seeded
-  `enterprise_client` table or a small seeded `operator` table, and rejects the request
-  with 400 if the header is missing/unknown for the endpoint's required role. The
-  resolved identity is placed on the request as a typed `CallerIdentity` and injected
-  into controller methods via a custom `HandlerMethodArgumentResolver`. No Spring
-  Security filter chain, session, or credential check is added.
+- **Decision**: A servlet `OncePerRequestFilter` reads `X-Client-Id`
+  (enterprise-client-facing endpoints) and/or `X-Operator-Id`
+  (operator-facing endpoints), resolving each against the seeded
+  `enterprise_client` table or a small seeded `operator` table, and rejects
+  the request with 400 if a required header is missing/unknown. The two
+  headers are not always mutually exclusive: on the read endpoints
+  (`GET /orders`, `GET /orders/{orderId}`), `X-Client-Id` is always required
+  (it names the client whose data is being viewed) and `X-Operator-Id` is
+  optional — present only when an operator has selected that client in the
+  identity switcher's client/company selector (FR-026) and is viewing that
+  client's per-client pages rather than their own. On the client-only
+  mutation endpoints (`POST /orders`, `PUT /orders/{orderId}/line-items`,
+  `POST /orders/{orderId}/cancel`), only `X-Client-Id` is accepted — supplying
+  `X-Operator-Id` does not grant a client-only action. On the operator-only
+  mutation endpoint (`POST /orders/{orderId}/status`), only `X-Operator-Id`
+  is required; the order's owning client is already fixed by `orderId`, so no
+  `X-Client-Id` is needed there. The resolved identity/identities are placed
+  on the request as a typed `CallerIdentity` and injected into controller
+  methods via a custom `HandlerMethodArgumentResolver`. No Spring Security
+  filter chain, session, or credential check is added.
 - **Rationale**: Matches the spec's explicit assumption that identity is trusted
   as-is (FR-001, FR-008, FR-010, FR-012) while still giving every layer below the
   controller a typed, non-forgeable-within-the-request identity to scope queries by,
-  keeping FR-009/FR-018 enforcement mechanical rather than ad hoc.
+  keeping FR-009/FR-018 enforcement mechanical rather than ad hoc. The dual-header
+  read case directly implements FR-026's requirement that an operator views the
+  same per-client pages "scoped to the client currently selected in the identity
+  switcher" rather than a cross-client queue, without inventing a separate
+  operator-only read endpoint.
 - **Alternatives considered**: Full Spring Security with a permissive
   `PermitAll`/custom `AuthenticationProvider` — rejected as unnecessary ceremony for a
   demo with no login; a simple query parameter instead of a header — rejected because
   headers keep the identity out of URLs/logs by convention and match the "demo
-  identity switcher" UI sending it on every request.
+  identity switcher" UI sending it on every request; a separate
+  `GET /operators/{operatorId}/clients/{clientId}/orders` endpoint for the
+  operator read case — rejected as a duplicate of the client read path that
+  would have to be kept in lockstep with it for no behavioral difference.
 
 ## 2. Demo identity switcher backing data
 
 - **Decision**: Seed a fixed set of demo `enterprise_client` rows (each with contract
   discount terms) and a fixed set of demo operator identifiers via Flyway migrations.
   Expose them read-only via `GET /api/demo-identities` for the frontend switcher to
-  populate its dropdown.
+  populate its dropdown. The seeded roster covers every contract-terms state FR-027
+  requires, at minimum:
+  - `ACME-001`, `GLOBEX-002` — valid, currently-effective terms with differing
+    `discount_percentage` values, so both differing Net Totals and per-client
+    isolation are observable side by side.
+  - `NOTERMS-003` — no `contract_discount_terms` row at all (missing).
+  - `EXPIRED-004` — one row whose `effective_until` is in the past (expired).
+  - `AMBIGUOUS-005` — either zero rows matching "now" (a future-dated
+    `effective_from` with no other coverage) or two overlapping rows for the
+    same instant, demonstrating the ambiguous case distinctly from the
+    missing/expired ones.
+  - `OPS-1` — a seeded operator identifier, distinct from the client rows.
 - **Rationale**: FR-019 requires the switcher to list selectable identities; since
   there is no signup/provisioning flow in scope, seed data is the only source.
+  FR-027 additionally requires the roster to make every blocking condition in
+  FR-004 demonstrable from the switcher alone, without a contract-management
+  screen.
 - **Alternatives considered**: Hardcoding the identity list in the frontend — rejected
   because it would drift from the backend's actual seeded clients/contract terms and
-  duplicate data ownership.
+  duplicate data ownership; seeding only the two valid clients and leaving the
+  missing/expired/ambiguous cases to be constructed ad hoc during testing —
+  rejected because FR-027 requires them to ship as part of the fixed seed set.
 
 ## 3. Concurrency / first-committed-wins (FR-016)
 
 - **Decision**: `bulk_order` carries a JPA `@Version` column. Every state-changing
   operation (cancel, advance status, edit line items) loads the order, applies the
   change, and saves within a single transaction. A concurrent conflicting write raises
-  `OptimisticLockException`, which a `@ControllerAdvice` maps to HTTP 409 with a
-  Problem Details body stating the order's state has changed.
+  `OptimisticLockException`, which a `@ControllerAdvice` catches, re-reads the order's
+  now-current row (a cheap follow-up `SELECT`, outside the failed transaction), and
+  maps the failure to HTTP 409 with a Problem Details body stating the order's state
+  has changed *and* carrying that freshly-read `currentStatus`, so the caller sees the
+  actual outcome without a separate lookup (FR-016).
 - **Rationale**: Optimistic locking is the standard Spring Data JPA / PostgreSQL
   mechanism for exactly this "whoever commits first wins, the other is rejected"
-  semantics, with no extra locking service required.
+  semantics, with no extra locking service required; re-reading the row on conflict is
+  the simplest way to satisfy FR-016's requirement that the rejection response include
+  the order's current status, since the losing request's own in-memory copy is stale
+  by definition.
 - **Alternatives considered**: Pessimistic row locks (`SELECT ... FOR UPDATE`) —
   rejected as unnecessary contention/latency for a low-throughput demo entity and a
   worse fit for the "reject the loser with a message" requirement than an exception
@@ -183,6 +224,14 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
   summary) fits comfortably in Context + component state; a full server-state library
   (React Query) is worth adopting during implementation for caching/refetch but is not
   a research-blocking decision.
+- **Empty/loading/error states (FR-028, FR-029)**: Each order region (Active
+  Orders, Order History) tracks its own `idle | loading | error | loaded` fetch
+  state rather than sharing one page-level flag, since the two regions load
+  independently and must be able to show a loading indicator, a retry-capable
+  error message, or a distinct "No active orders" / "No past orders" empty
+  message without one region's state leaking into the other's rendering.
+  Retry re-issues the same fetch; no exponential backoff or automatic retry is
+  needed at this demo scale.
 
 ## 11. Testcontainers strategy
 
@@ -225,3 +274,73 @@ against the spec's requirements (FR-001–FR-025) and constitution gates.
   (original decision, pre-2026-08-19) — superseded because it would force
   warehouse/invoice services to be built and deployed as one unit with order-api
   once they exist, defeating the point of a services-oriented monorepo.
+
+## 13. Net Total rounding (FR-003)
+
+- **Decision**: `unit_list_price` and `quantity` are exact by construction
+  (catalog prices are stored to 2 decimal places, quantity is an integer), so
+  each `line_subtotal` and the summed `gross_total` are already exact to 2
+  decimal places with no intermediate rounding. The discount step —
+  `net_total_raw = gross_total - (gross_total * discount_percentage / 100)` —
+  is computed with `BigDecimal` at an unrounded/high intermediate scale (no
+  `.setScale` until the final step), and only `net_total_raw` is rounded, once,
+  to 2 decimal places using `RoundingMode.HALF_UP`, producing the persisted
+  `net_total`. No other value in the pricing path is rounded.
+- **Rationale**: Directly implements FR-003's "carry Gross Total and the
+  discount calculation at full precision, then round only the final Net Total
+  ... using round-half-up" rule; rounding `gross_total` or an intermediate
+  discount amount before the final step would let compounding rounding error
+  diverge from the spec's stated policy.
+- **Alternatives considered**: Rounding at each intermediate step (gross
+  total, discount amount, then net total) — rejected, explicitly contradicts
+  FR-003; using `RoundingMode.HALF_EVEN` (banker's rounding, Java's
+  `BigDecimal` default via `MathContext`) — rejected, FR-003 specifies
+  half-up.
+
+## 14. Order History pagination (FR-008)
+
+- **Decision**: `GET /orders` accepts `page` (0-based, default `0`) and
+  returns at most 25 orders per call, ordered by `created_at DESC, id DESC`
+  (the `id` tiebreaker keeps ordering stable when multiple orders share a
+  `created_at` value at the query's timestamp precision). The response is a
+  paging envelope — `items`, `page`, `pageSize`, `totalCount`, `hasMore` —
+  rather than a bare array, so the frontend's "reach older entries" control
+  knows whether to render itself without a separate count call. A composite
+  index on `bulk_order (client_id, created_at DESC, id DESC)` backs both the
+  ownership filter (FR-009) and the ordering/paging in one index scan, keeping
+  retrieval within SC-001's under-5-seconds target regardless of history
+  length.
+- **Rationale**: FR-008 requires newest-first ordering, a fixed page size of
+  25, a way to reach older entries, and no skipped/duplicated entries across
+  pages; offset-based paging with a stable `(created_at, id)` sort key is the
+  simplest mechanism satisfying all four without introducing opaque cursor
+  tokens the frontend has no other need for at this scale.
+- **Alternatives considered**: Cursor/keyset pagination (`WHERE (created_at,
+  id) < (:lastCreatedAt, :lastId)`) — a stronger guarantee against skips when
+  rows are concurrently inserted mid-scroll, but rejected as more mechanism
+  than a demo with ≤500 orders/day (SC-007) needs; returning the full history
+  and paging client-side — rejected, defeats SC-001's retrieval-time target as
+  history grows.
+
+## 15. Line item and quantity ceilings (FR-014, FR-030)
+
+- **Decision**: Bean Validation annotations enforce `quantity` between 1 and
+  10,000 inclusive on each `LineItemInput` (`@Min(1) @Max(10000)`), and a
+  custom validator on `CreateOrderRequest`/`ReplaceLineItemsRequest` rejects a
+  `lineItems` list with more than 100 entries. Both checks run before the
+  SKU-existence and contract-terms checks, so a request that trips a ceiling
+  fails fast with a single clear message (per line-item ceiling or per-order
+  ceiling) rather than a generic validation error, and — per FR-004 — no order
+  or line item row is ever persisted for a rejected submission. The same
+  validators run on `PUT /orders/{orderId}/line-items` so an edit cannot push
+  an existing order past either limit either.
+- **Rationale**: Bean Validation on the request DTO is the standard Spring
+  mechanism for a fixed numeric ceiling and needs no hand-rolled check; the
+  list-size ceiling needs one small custom validator since `@Size` alone
+  wouldn't produce FR-030's specific error message distinguishing "too many
+  line items" from other validation failures.
+- **Alternatives considered**: Enforcing only at the database layer (a `CHECK`
+  constraint) — rejected, produces an opaque constraint-violation error
+  instead of FR-014/FR-030's required clear, specific message, and fires only
+  on the write that would have exceeded it rather than during request
+  validation.

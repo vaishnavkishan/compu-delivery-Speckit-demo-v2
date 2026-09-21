@@ -55,17 +55,39 @@ Edit case (FR-025): `PUT /api/orders/{id}/line-items` while status is `INTAKE` o
 `PROCESSING`; confirm `grossTotal`/`netTotal` change and a new `NetTotalCalculation`
 row is implied by the updated `OrderDetail` response.
 
-## 4. Validate User Story 2 — order history scoped per client
+Ceiling case (FR-014, FR-030): repeat with a line item quantity of `10001` and
+confirm HTTP 400 naming the quantity ceiling; repeat with 101 distinct line
+items and confirm HTTP 400 naming the line-item-count ceiling; confirm neither
+request creates an order.
+
+## 4. Validate User Story 2 — order history scoped per client, paged, and operator-viewable
 
 ```bash
 curl -s http://localhost:8080/api/orders -H "X-Client-Id: ACME-001" | jq
 curl -s http://localhost:8080/api/orders -H "X-Client-Id: OTHER-CLIENT" | jq
 ```
 
-Expected: each list contains only that client's own orders (FR-008, FR-009).
-Fetching ACME-001's order ID with `X-Client-Id: OTHER-CLIENT` on
-`GET /api/orders/{id}` returns HTTP 404 (FR-018), identical in shape to a
-nonexistent order ID.
+Expected: each response is an `OrderHistoryPage` (`items`, `page`, `pageSize`,
+`totalCount`, `hasMore`) containing only that client's own orders,
+newest-first (FR-008, FR-009). Fetching ACME-001's order ID with
+`X-Client-Id: OTHER-CLIENT` on `GET /api/orders/{id}` returns HTTP 404
+(FR-018), identical in shape to a nonexistent order ID.
+
+Pagination case (FR-008): create 26+ orders for one client, then confirm
+`GET /api/orders?page=0` returns 25 items with `hasMore: true`, and
+`GET /api/orders?page=1` returns the remainder with no entry repeated or
+skipped across the two pages.
+
+Operator-view case (FR-026): as the seeded operator, call
+`curl -s http://localhost:8080/api/orders -H "X-Operator-Id: OPS-1" -H "X-Client-Id: ACME-001"`
+and confirm it returns the same page ACME-001 itself would see — an operator
+views a specific client's history via the identity switcher's client
+selector, never a cross-client queue.
+
+Seeded-roster case (FR-027, FR-004): submitting an order as `NOTERMS-003`
+(missing terms), `EXPIRED-004` (expired terms), or `AMBIGUOUS-005` (ambiguous
+terms) each returns HTTP 422 naming the specific condition, per step 3's
+negative case.
 
 ## 5. Validate User Story 3 — cancel an active order
 
@@ -95,8 +117,9 @@ transitions succeed (FR-006 exception case).
 
 Fire a cancel request and a `targetStatus: FINAL_DELIVERY` advance request for the
 same order concurrently (e.g. two parallel `curl` calls); confirm exactly one
-succeeds (HTTP 200) and the other returns HTTP 409 with a message indicating the
-order's state has changed.
+succeeds (HTTP 200) and the other returns HTTP 409 whose body includes both a
+message indicating the order's state has changed and a `currentStatus` field
+matching the order's actual now-current status.
 
 ## 8. Validate the OrderIntaken event
 
@@ -105,7 +128,18 @@ With the RabbitMQ management UI (`http://localhost:15672`, default guest/guest) 
 schema was published to the `order.events` exchange with routing key
 `order.intaken` for each order created in step 3.
 
-## 9. Automated verification (run during implementation, not by this plan)
+## 9. Validate portal empty/loading/error states (FR-028, FR-029)
+
+Manual UI check against `apps/order-portal` (started in step 2):
+
+- Select a freshly seeded demo client with no orders yet: Active Orders shows
+  "No active orders" with a call to action to start an order, and Order
+  History shows "No past orders" — not a blank region.
+- Throttle or block the network in devtools while loading the dashboard:
+  each region shows a loading indicator, then — on failure — a plain error
+  message with a retry action; retrying re-issues the fetch.
+
+## 10. Automated verification (run during implementation, not by this plan)
 
 ```bash
 cd services/order-api && ./mvnw test                 # JUnit5/Mockito/AssertJ unit tests
@@ -113,7 +147,7 @@ cd services/order-api && ./mvnw verify -Pintegration  # Testcontainers-backed in
 cd apps/order-portal && npm run test                  # Vitest + RTL
 ```
 
-## 10. Deployment validation (k3s / Rancher Desktop)
+## 11. Deployment validation (k3s / Rancher Desktop)
 
 ```bash
 docker build -t order-api:local services/order-api/
@@ -126,5 +160,5 @@ kubectl get pods
 ```
 
 Expected: backend, frontend, PostgreSQL, and RabbitMQ pods reach `Running`; the
-portal is reachable per the chart's configured Service/Ingress, and steps 3–8 above
+portal is reachable per the chart's configured Service/Ingress, and steps 3–9 above
 succeed against the k3s-hosted service.
