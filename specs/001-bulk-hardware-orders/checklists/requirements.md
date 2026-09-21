@@ -86,6 +86,7 @@
 
 - [x] CHK028 Are accessibility requirements specified for the identity switcher, quantity controls, lifecycle indicator, status indicators, confirmation control, and validation messages? [Gap, Spec §FR-019, Spec §FR-022, Spec §FR-023, Spec §FR-024]
 - [x] CHK029 Are performance requirements defined for initial pricing, edit recalculation, order history retrieval, and the stated daily submission volume rather than only initial submission? [Coverage, Spec §SC-001, Spec §SC-007]
+- [x] CHK039 Are the Order History Log's ordering rule, page size, and older-entry navigation specified so retrieval stays bounded as a client's history grows indefinitely? [Gap, Spec §FR-008, Spec §FR-007, Spec §SC-001]
 - [x] CHK030 Are security and privacy requirements explicit about trusted identifiers, cross-client data isolation, contract discount confidentiality, and generic not-found disclosure? [Completeness, Spec §FR-009, Spec §FR-018, Spec §SC-006]
 - [x] CHK031 Are audit-retention, timestamp precision, actor identity, and append-only history requirements sufficiently specified to support the stated reconstruction outcome? [Gap, Spec §FR-007, Spec §SC-005]
 
