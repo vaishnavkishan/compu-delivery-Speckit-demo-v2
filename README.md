@@ -10,7 +10,7 @@ alongside the writeup. Every step includes the raw slash-command prompt used.
 TLDR;
 
 ```
-constitution -> specify -> clarify -> plan -> checklist (optional, loop) -> tasks -> analyse (optional) -> implement
+constitution -> specify -> clarify -> plan -> checklist (optional, loop) -> tasks -> analyze (optional, loop) -> implement
 ```
 
 ## Prerequisites (branch name 00-speckit-initialize)
@@ -252,3 +252,29 @@ Reads `plan.md` (tech stack, structure), `spec.md` (user stories), and, where pr
 Every task is `- [ ] T### [P?] [Story?] Description with an exact file path`; `[P]` marks
 tasks safe to run in parallel (different files, no unmet dependency), and `[US1]`–`[US4]` map a
 task back to its user story. The MVP is Setup + Foundational + User Story 1 alone.
+
+### 7. Analyze cross-artifact consistency (`/speckit-analyze`, branch 07-speckit-analyze)
+
+Strictly read-only: cross-checks `spec.md`, `plan.md`, and `tasks.md` against each other and
+against `.specify/memory/constitution.md` for duplication, ambiguity, underspecification,
+constitution violations, coverage gaps, and inconsistency — without editing any file.
+
+```
+/speckit-analyze
+```
+
+Findings are written to `specs/001-bulk-hardware-orders/analysis-report.md`. For this feature,
+zero CRITICAL issues were found (30/30 functional requirements have ≥1 task, zero ambiguity, zero
+duplication), but the run surfaced six lower-severity gaps worth closing before
+`/speckit-implement`, e.g.:
+
+- `tasks.md` never assigns a task to set `net_total_locked_at` on the `SHIPPED` transition, even
+  though `data-model.md`/`plan.md` cite that field as FR-017's and Constitution Principle II's
+  enforcement mechanism (HIGH)
+- SC-001 (5s response target), SC-003 (≤3 UI actions), and SC-007 (500 orders/day load target) have
+  no task or quickstart step that actually verifies them, only functional-correctness tests
+  (MEDIUM/LOW)
+- FR-015's empty-order rejection is tested (T034) but not named in any implementation task (T038)
+  (MEDIUM)
+
+The report offers optional remediation edits to `tasks.md`; none are applied automatically.
