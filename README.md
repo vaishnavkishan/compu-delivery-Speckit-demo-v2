@@ -10,7 +10,7 @@ alongside the writeup. Every step includes the raw slash-command prompt used.
 TLDR;
 
 ```
-constitution -> specify -> clarify -> plan -> checklist (optional) -> tasks -> analyse (optional) -> implement
+constitution -> specify -> clarify -> plan -> checklist (optional, loop) -> tasks -> analyse (optional) -> implement
 ```
 
 ## Prerequisites (branch name 00-speckit-initialize)
@@ -228,3 +228,27 @@ empty/loading/error states — without starting the plan over from scratch:
 ```
 /speckit-plan
 ```
+
+### 6. Generate the task list (`/speckit-tasks`, branch 06-speckit-tasks)
+
+Turns the plan's design artifacts into `specs/001-bulk-hardware-orders/tasks.md` — a
+dependency-ordered, checklist-formatted task breakdown grouped by user story (P1–P3) rather than
+by layer, so each story can be built, tested, and demoed independently before the next one starts.
+
+Reads `plan.md` (tech stack, structure), `spec.md` (user stories), and, where present,
+`data-model.md`, `contracts/`, and `research.md` to produce:
+
+- Phase 1 (Setup) and Phase 2 (Foundational) — shared scaffolding, schema/seed migrations,
+  domain entities, identity handling, and lifecycle rules that block every story
+- One phase per user story (Submit & Price, View History, Cancel, Operator Lifecycle
+  Advancement) — each with its own tests and implementation tasks, independently testable
+- A final Polish phase — Docker/Helm artifacts, remaining frontend coverage, full quickstart
+  validation
+
+```
+/speckit-tasks
+```
+
+Every task is `- [ ] T### [P?] [Story?] Description with an exact file path`; `[P]` marks
+tasks safe to run in parallel (different files, no unmet dependency), and `[US1]`–`[US4]` map a
+task back to its user story. The MVP is Setup + Foundational + User Story 1 alone.
