@@ -277,3 +277,14 @@ command below (commit `0033ceb`):
 add a load-test task for SC-007 and timing assertions for SC-001 to tasks.md Phase 7, and a UI-action-count check to quickstart.md for SC-003.
 
 ```
+
+### 8. Execute the implementation plan (`/speckit-implement`, branch 08-speckit-implement)
+
+Works through `tasks.md` phase by phase — Setup, then Foundational, then each user story in
+order — marking tasks `[X]` as done and pausing at checkpoints so each story can be tested
+independently before the next one starts. Here it stopped after Setup, Foundational, and User
+Story 1, delivering the MVP (bulk order intake and pricing).
+
+```
+/speckit-implement
+```
