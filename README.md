@@ -196,34 +196,21 @@ The generated checklist is appended to
 /speckit-checklist
 ```
 
-Checklist items it produces are checks against the spec, not against the checklist itself — each
-unchecked item means the spec doesn't yet clearly answer that question, not that the checklist
-needs editing. `/speckit-clarify` is what actually resolves them: re-running it re-reads the
-checklist, asks targeted questions about the still-unchecked items, encodes accepted answers back
-into `spec.md`, and re-validates the checklist, flipping items to checked as the spec closes each
-gap.
+Each unchecked item means the spec doesn't yet clearly answer that question. `/speckit-clarify`
+resolves them (re-run it — up to 5 questions per pass — until every item is checked), then
+`/speckit-plan` is re-run so the plan artifacts pick up the resulting spec changes:
 
-`/speckit-clarify` only asks up to 5 questions per run, so a checklist with more than 5 unchecked
-items needs more than one pass. Repeat `/speckit-clarify` until every item in
-`specs/001-bulk-hardware-orders/checklists/requirements.md` is checked:
+```mermaid
+flowchart LR
+    CO[constitution] --> SP[specify] --> CL[clarify] --> P[plan] --> CH["checklist (optional)"]
+    CH -->|unchecked items| CL
+    CL -->|repeat until all checked| CL
+    CH -->|all checked| T[tasks] --> AN["analyze (optional)"] --> I[implement]
+```
 
 ```
 /speckit-clarify
 ```
-
-Two clarify sessions closed out the checklist for this feature: `770624a` (two
-`/speckit-clarify` runs, 10 questions, resolving discount bounds, rounding precision, audit
-history timestamps/retention, and other checklist gaps) and `8d13153` (one more
-`/speckit-clarify` run, 5 questions, resolving operator UI surface, demo seed data,
-empty/loading states, history paging, and quantity limits).
-
-Those checklist-driven clarify rounds updated `spec.md` (FR-025–FR-030 and related Edge
-Cases/Key Entities) after the plan artifacts from Step 4 had already been generated, so
-`plan.md`, `research.md`, `data-model.md`, `contracts/`, and `quickstart.md` no longer
-reflected the current spec. Re-running `/speckit-plan` (`aec06f4`) picked this drift up and
-refreshed those artifacts in place — rounding policy, Order History pagination,
-quantity/line-item ceilings, operator client-scoped viewing, the seeded identity roster, and
-empty/loading/error states — without starting the plan over from scratch:
 
 ```
 /speckit-plan
@@ -263,18 +250,30 @@ constitution violations, coverage gaps, and inconsistency — without editing an
 /speckit-analyze
 ```
 
-Findings are written to `specs/001-bulk-hardware-orders/analysis-report.md`. For this feature,
-zero CRITICAL issues were found (30/30 functional requirements have ≥1 task, zero ambiguity, zero
-duplication), but the run surfaced six lower-severity gaps worth closing before
-`/speckit-implement`, e.g.:
+Findings are normally reported in the terminal/chat output only, not persisted to the repo. Here
+they were additionally written to `specs/001-bulk-hardware-orders/analysis-report.md`, ranked by
+severity (CRITICAL/HIGH/MEDIUM/LOW), just to show what the report looks like. None are applied
+automatically — fix wherever a finding is rooted, then loop forward again through the remaining
+steps:
 
-- `tasks.md` never assigns a task to set `net_total_locked_at` on the `SHIPPED` transition, even
-  though `data-model.md`/`plan.md` cite that field as FR-017's and Constitution Principle II's
-  enforcement mechanism (HIGH)
-- SC-001 (5s response target), SC-003 (≤3 UI actions), and SC-007 (500 orders/day load target) have
-  no task or quickstart step that actually verifies them, only functional-correctness tests
-  (MEDIUM/LOW)
-- FR-015's empty-order rejection is tested (T034) but not named in any implementation task (T038)
-  (MEDIUM)
+```mermaid
+flowchart LR
+    CO[constitution] --> SP[specify] --> CL[clarify] --> P[plan] --> CH["checklist (optional)"] --> T[tasks] --> A["analyze (optional)"]
+    A -->|constitution gap| CO
+    A -->|spec/requirement gap| CL
+    A -->|plan/design gap| P
+    A -->|checklist gap| CH
+    A -->|task gap| T
+    A -->|no findings| I[implement]
+```
 
-The report offers optional remediation edits to `tasks.md`; none are applied automatically.
+Re-run `/speckit-analyze` to confirm a finding is resolved.
+
+In this case, `tasks.md` was the only artifact with a HIGH-severity gap, closed by running the
+command below (commit `0033ceb`):
+
+```
+/speckit-tasks  edit tasks.md T063 to explicitly set net_total_locked_at on the SHIPPED transition (G1), and T038 to name the min-1-line-item validator (U1).
+add a load-test task for SC-007 and timing assertions for SC-001 to tasks.md Phase 7, and a UI-action-count check to quickstart.md for SC-003.
+
+```
