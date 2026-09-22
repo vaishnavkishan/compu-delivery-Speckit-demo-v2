@@ -4,19 +4,24 @@ interface PricingSummaryProps {
   grossSubtotal: number
   /** Known only once the server has priced the order (create/edit response); undefined before then. */
   appliedDiscountPercentage?: number
-  netTotal?: number
 }
 
 /**
  * Gross Subtotal, Contract Discount, Freight & Logistics (always informational "Waived"), and
- * Final Net Total, in that order (FR-021). Gross Subtotal recomputes live as catalog quantities
- * change; the discount/net figures reflect the server's most recent pricing response, since Net
- * Total derives exclusively from the client's contract terms (FR-003) rather than a client-side
- * estimate.
+ * Final Net Total, in that order (FR-021). Gross Subtotal, the Contract Discount amount, and
+ * Final Net Total all recompute live together as catalog quantities change, using the client's
+ * last-known contract discount percentage (FR-003); the discount percentage itself only ever
+ * comes from the server's pricing response, never a client-side estimate.
  */
-export function PricingSummary({ grossSubtotal, appliedDiscountPercentage, netTotal }: PricingSummaryProps) {
+export function PricingSummary({ grossSubtotal, appliedDiscountPercentage }: PricingSummaryProps) {
   const discountAmount =
-    appliedDiscountPercentage !== undefined ? (grossSubtotal * appliedDiscountPercentage) / 100 : undefined
+    appliedDiscountPercentage !== undefined
+      ? (grossSubtotal * appliedDiscountPercentage) / 100
+      : undefined
+  const netTotal =
+    discountAmount !== undefined
+      ? Math.round((grossSubtotal - discountAmount) * 100) / 100
+      : undefined
 
   return (
     <dl className="divide-y divide-gray-100 text-sm">
@@ -25,7 +30,10 @@ export function PricingSummary({ grossSubtotal, appliedDiscountPercentage, netTo
         <dd>{currency.format(grossSubtotal)}</dd>
       </div>
       <div className="flex justify-between py-2">
-        <dt className="text-gray-600">Contract Discount{appliedDiscountPercentage !== undefined ? ` (${appliedDiscountPercentage}%)` : ''}</dt>
+        <dt className="text-gray-600">
+          Contract Discount
+          {appliedDiscountPercentage !== undefined ? ` (${appliedDiscountPercentage}%)` : ''}
+        </dt>
         <dd>{discountAmount !== undefined ? `-${currency.format(discountAmount)}` : '—'}</dd>
       </div>
       <div className="flex justify-between py-2">

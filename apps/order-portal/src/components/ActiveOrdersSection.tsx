@@ -167,7 +167,12 @@ export function ActiveOrdersSection() {
                 </button>
               )}
               {isClient && confirmingCancelId === order.id && (
-                <span className="flex items-center gap-2 text-sm">
+                <span
+                  role="alertdialog"
+                  aria-live="assertive"
+                  aria-label={`Confirm cancellation of order ${order.id.slice(0, 8)}`}
+                  className="flex items-center gap-2 text-sm"
+                >
                   <span className="text-gray-700">Cancel this order?</span>
                   <button
                     type="button"

@@ -8,5 +8,7 @@ public interface LineItemRepository extends JpaRepository<LineItem, UUID> {
 
 	List<LineItem> findByOrderId(UUID orderId);
 
+	List<LineItem> findByOrderIdIn(List<UUID> orderIds);
+
 	void deleteByOrderId(UUID orderId);
 }

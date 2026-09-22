@@ -10,13 +10,21 @@ describe('PricingSummary', () => {
     expect(screen.getAllByText('—')).toHaveLength(2)
   })
 
-  it('recomputes the gross subtotal live and shows the server-priced discount and net total', () => {
-    render(<PricingSummary grossSubtotal={2000} appliedDiscountPercentage={10} netTotal={1800} />)
+  it('recomputes the gross subtotal, discount, and net total together as quantities change', () => {
+    const { rerender } = render(
+      <PricingSummary grossSubtotal={2000} appliedDiscountPercentage={10} />,
+    )
 
     expect(screen.getByText('$2,000.00')).toBeInTheDocument()
     expect(screen.getByText('Contract Discount (10%)')).toBeInTheDocument()
     expect(screen.getByText('-$200.00')).toBeInTheDocument()
     expect(screen.getByText('$1,800.00')).toBeInTheDocument()
+
+    rerender(<PricingSummary grossSubtotal={3000} appliedDiscountPercentage={10} />)
+
+    expect(screen.getByText('$3,000.00')).toBeInTheDocument()
+    expect(screen.getByText('-$300.00')).toBeInTheDocument()
+    expect(screen.getByText('$2,700.00')).toBeInTheDocument()
   })
 
   it('always shows Freight & Logistics as Waived', () => {

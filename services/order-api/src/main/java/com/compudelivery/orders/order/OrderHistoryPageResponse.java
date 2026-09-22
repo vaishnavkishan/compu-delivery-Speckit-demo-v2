@@ -11,8 +11,8 @@ import org.springframework.data.domain.Page;
 public record OrderHistoryPageResponse(List<OrderSummaryResponse> items, int page, int pageSize, long totalCount,
 		boolean hasMore) {
 
-	public static OrderHistoryPageResponse from(Page<BulkOrder> page) {
-		return new OrderHistoryPageResponse(page.getContent().stream().map(OrderSummaryResponse::from).toList(),
-				page.getNumber(), page.getSize(), page.getTotalElements(), page.hasNext());
+	public static OrderHistoryPageResponse from(Page<BulkOrder> page, List<OrderSummaryResponse> items) {
+		return new OrderHistoryPageResponse(items, page.getNumber(), page.getSize(), page.getTotalElements(),
+				page.hasNext());
 	}
 }

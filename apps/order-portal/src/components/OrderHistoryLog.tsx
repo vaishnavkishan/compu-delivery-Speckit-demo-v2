@@ -1,26 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch } from '../api/client'
-import type {
-  LifecycleTransition,
-  OrderDetail,
-  OrderHistoryPage,
-  OrderStatus,
-  OrderSummary,
-} from '../api/types'
+import type { OrderHistoryPage, OrderStatus, OrderSummary } from '../api/types'
 import { useIdentity } from '../context/IdentityContext'
 
 type FetchState = 'loading' | 'error' | 'loaded'
 
-interface HistoryEntry {
-  summary: OrderSummary
-  transitions: LifecycleTransition[]
-}
-
 const STATUS_STYLES: Record<OrderStatus, string> = {
   INTAKE: 'bg-blue-100 text-blue-800',
   PROCESSING: 'bg-yellow-100 text-yellow-800',
-  BACKORDERED: 'bg-amber-100 text-amber-800',
+  BACKORDERED: 'bg-orange-100 text-orange-800',
   SHIPPED: 'bg-purple-100 text-purple-800',
   FINAL_DELIVERY: 'bg-green-100 text-green-800',
   CANCELLED: 'bg-gray-200 text-gray-700',
@@ -30,20 +19,14 @@ const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeS
 
 async function loadEntriesForPage(headers: Record<string, string>, page: number) {
   const listPage = await apiFetch<OrderHistoryPage>(`/orders?page=${page}`, headers)
-  const entries = await Promise.all(
-    listPage.items.map(async (summary) => {
-      const detail = await apiFetch<OrderDetail>(`/orders/${summary.id}`, headers)
-      return { summary, transitions: detail.transitions }
-    }),
-  )
-  return { entries, hasMore: listPage.hasMore }
+  return { entries: listPage.items, hasMore: listPage.hasMore }
 }
 
 /** Newest-first, paged Order History Log with full per-order transition timestamps (FR-008, FR-023). */
 export function OrderHistoryLog() {
   const { headers } = useIdentity()
   const [state, setState] = useState<FetchState>('loading')
-  const [entries, setEntries] = useState<HistoryEntry[]>([])
+  const [entries, setEntries] = useState<OrderSummary[]>([])
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -120,7 +103,7 @@ export function OrderHistoryLog() {
 
   return (
     <div className="space-y-3">
-      {entries.map(({ summary, transitions }) => (
+      {entries.map((summary) => (
         <div key={summary.id} className="rounded-lg border border-gray-200 p-4">
           <div className="flex items-center justify-between gap-4">
             <Link
@@ -136,7 +119,7 @@ export function OrderHistoryLog() {
             </span>
           </div>
           <ul className="mt-2 space-y-1 text-xs text-gray-500">
-            {transitions.map((transition, index) => (
+            {summary.transitions.map((transition, index) => (
               <li key={index}>
                 {(transition.fromStatus ? `${transition.fromStatus} → ` : '') + transition.toStatus}{' '}
                 — {dateFormat.format(new Date(transition.occurredAt))}

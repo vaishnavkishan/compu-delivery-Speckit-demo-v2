@@ -69,37 +69,38 @@ describe('OrderHistoryLog', () => {
   })
 
   it('renders each entry with its status and full transition history, and a "reach older entries" control when more pages remain', async () => {
-    vi.mocked(apiFetch).mockImplementation((path: string) => {
-      if (path.startsWith('/orders?page=')) {
-        return Promise.resolve({
-          items: [
-            { id: 'order-1', status: 'CANCELLED', netTotal: 100, createdAt: '', updatedAt: '' },
+    vi.mocked(apiFetch).mockResolvedValue({
+      items: [
+        {
+          id: 'order-1',
+          status: 'CANCELLED',
+          lineItems: [],
+          grossTotal: 100,
+          netTotal: 100,
+          createdAt: '',
+          updatedAt: '',
+          transitions: [
+            {
+              fromStatus: null,
+              toStatus: 'INTAKE',
+              actorType: 'CLIENT',
+              actorId: 'ACME-001',
+              occurredAt: '2026-01-01T00:00:00Z',
+            },
+            {
+              fromStatus: 'INTAKE',
+              toStatus: 'CANCELLED',
+              actorType: 'CLIENT',
+              actorId: 'ACME-001',
+              occurredAt: '2026-01-02T00:00:00Z',
+            },
           ],
-          page: 0,
-          pageSize: 25,
-          totalCount: 26,
-          hasMore: true,
-        })
-      }
-      return Promise.resolve({
-        id: 'order-1',
-        transitions: [
-          {
-            fromStatus: null,
-            toStatus: 'INTAKE',
-            actorType: 'CLIENT',
-            actorId: 'ACME-001',
-            occurredAt: '2026-01-01T00:00:00Z',
-          },
-          {
-            fromStatus: 'INTAKE',
-            toStatus: 'CANCELLED',
-            actorType: 'CLIENT',
-            actorId: 'ACME-001',
-            occurredAt: '2026-01-02T00:00:00Z',
-          },
-        ],
-      })
+        },
+      ],
+      page: 0,
+      pageSize: 25,
+      totalCount: 26,
+      hasMore: true,
     })
 
     renderWithRouter()

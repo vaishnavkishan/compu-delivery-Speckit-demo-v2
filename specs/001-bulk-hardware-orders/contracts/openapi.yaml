@@ -93,7 +93,8 @@ components:
         id: { type: string }
         displayName: { type: string }
         role: { type: string, enum: [CLIENT, OPERATOR] }
-      required: [id, displayName, role]
+        contractReference: { type: string, nullable: true }
+      required: [id, displayName, role, contractReference]
 
     LineItemInput:
       type: object
@@ -162,10 +163,17 @@ components:
       properties:
         id: { type: string, format: uuid }
         status: { $ref: '#/components/schemas/OrderStatus' }
+        lineItems:
+          type: array
+          items: { $ref: '#/components/schemas/LineItem' }
+        grossTotal: { type: number, format: decimal }
         netTotal: { type: number, format: decimal }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-      required: [id, status, netTotal, createdAt, updatedAt]
+        transitions:
+          type: array
+          items: { $ref: '#/components/schemas/LifecycleTransition' }
+      required: [id, status, lineItems, grossTotal, netTotal, createdAt, updatedAt, transitions]
 
     CreateOrderRequest:
       type: object

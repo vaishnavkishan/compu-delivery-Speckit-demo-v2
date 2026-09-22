@@ -1,15 +1,11 @@
 export type OrderStatus =
-  | 'INTAKE'
-  | 'PROCESSING'
-  | 'BACKORDERED'
-  | 'SHIPPED'
-  | 'FINAL_DELIVERY'
-  | 'CANCELLED'
+  'INTAKE' | 'PROCESSING' | 'BACKORDERED' | 'SHIPPED' | 'FINAL_DELIVERY' | 'CANCELLED'
 
 export interface DemoIdentity {
   id: string
   displayName: string
   role: 'CLIENT' | 'OPERATOR'
+  contractReference: string | null
 }
 
 export interface HardwareCatalogItem {
@@ -55,9 +51,12 @@ export interface OrderDetail {
 export interface OrderSummary {
   id: string
   status: OrderStatus
+  lineItems: LineItem[]
+  grossTotal: number
   netTotal: number
   createdAt: string
   updatedAt: string
+  transitions: LifecycleTransition[]
 }
 
 export interface OrderHistoryPage {

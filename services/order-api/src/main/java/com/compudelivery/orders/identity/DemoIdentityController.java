@@ -29,9 +29,10 @@ public class DemoIdentityController {
 	public List<DemoIdentity> listDemoIdentities() {
 		Stream<DemoIdentity> clients = enterpriseClientRepository.findAll().stream()
 				.map((EnterpriseClient c) -> new DemoIdentity(c.getClientId(), c.getDisplayName(),
-						DemoIdentity.Role.CLIENT));
-		Stream<DemoIdentity> operators = operatorRepository.findAll().stream().map(
-				(Operator o) -> new DemoIdentity(o.getOperatorId(), o.getDisplayName(), DemoIdentity.Role.OPERATOR));
+						DemoIdentity.Role.CLIENT, c.getContractReference()));
+		Stream<DemoIdentity> operators = operatorRepository.findAll().stream()
+				.map((Operator o) -> new DemoIdentity(o.getOperatorId(), o.getDisplayName(), DemoIdentity.Role.OPERATOR,
+						null));
 		return Stream.concat(clients, operators).toList();
 	}
 }
