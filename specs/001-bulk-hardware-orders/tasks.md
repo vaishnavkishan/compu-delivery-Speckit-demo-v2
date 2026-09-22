@@ -282,3 +282,17 @@ Task: "Build PricingSummary component in apps/order-portal/src/components/Pricin
 - Commit after each task or logical group.
 - Stop at any checkpoint to validate a story independently before moving to the next.
 - No task in Setup/Foundational/Polish carries a [Story] label, per the format rules.
+
+---
+
+## Phase 8: Convergence
+
+**Purpose**: Remediate gaps identified by `/speckit-converge` between the codebase and spec.md/plan.md/tasks.md, found after all prior tasks were marked complete.
+
+- [ ] T077 Fix `OrderCancellationService.cancel` and `OrderLifecycleAdvancementService.advance` (`services/order-api/src/main/java/com/compudelivery/orders/order/`) to catch `ObjectOptimisticLockingFailureException` directly and populate `ConflictProblemDetail.currentStatus` from a freshly-read `BulkOrder` status looked up by the already-known `orderId`, instead of relying on `GlobalExceptionHandler`'s `ex.getIdentifier() instanceof UUID` branch (`services/order-api/src/main/java/com/compudelivery/orders/web/GlobalExceptionHandler.java`), which never fires because Spring's JPA optimistic-lock exception translation never populates `identifier` per FR-016 (contradicts)
+- [ ] T078 Extend `OrderHistoryService`/`OrderSummaryResponse` (`services/order-api/src/main/java/com/compudelivery/orders/order/`) so the paged `GET /api/orders` history response includes each order's line items, Gross Total, and the timestamp of every lifecycle transition inline per entry, not only via the separate per-order `GET /api/orders/{orderId}` detail call, per FR-008 (partial)
+- [ ] T079 Fix `OrderDetailPage`/`PricingSummary` (`apps/order-portal/src/pages/OrderDetailPage.tsx`, `apps/order-portal/src/components/PricingSummary.tsx`) so the Final Net Total recomputes consistently alongside the live Gross Subtotal and Contract Discount as catalog quantities change on an existing order, instead of leaving Final Net Total pinned to the stale last-server-response value per FR-021 (contradicts)
+- [ ] T080 Fix the zero-quantity submit block in `OrderDetailPage` (`apps/order-portal/src/pages/OrderDetailPage.tsx`) so the "add at least one item before submitting" message is actually shown to the user (e.g. as inline helper text tied to the disabled state) instead of living in a click-handler branch the disabled submit button can never reach per FR-024 (partial)
+- [ ] T081 Add a contract-reference field to the demo identity model and seed data, and render it in the header `ClientBadge` (`apps/order-portal/src/App.tsx`, `apps/order-portal/src/api/types.ts`) so the badge shows both the client name and contract reference as described in the UI Interface Overview (missing)
+- [ ] T082 Adjust the status color mapping in `OrderHistoryLog` (`apps/order-portal/src/components/OrderHistoryLog.tsx`) so Processing and Backordered use visually distinct colors rather than two similar yellow/amber hues per FR-023 (partial)
+- [ ] T083 Add an `aria-live` region or `role="alertdialog"` to the cancel-confirmation control in `ActiveOrdersSection` (`apps/order-portal/src/components/ActiveOrdersSection.tsx`) so its confirm/cancel state change is announced to screen readers, consistent with the best-effort accessibility treatment already applied to `IdentitySwitcher`, `CatalogTable`, and `LifecycleStepper`, per spec Assumptions (accessibility) (partial)

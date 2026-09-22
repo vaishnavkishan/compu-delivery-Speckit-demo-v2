@@ -288,3 +288,12 @@ Story 1, delivering the MVP (bulk order intake and pricing).
 ```
 /speckit-implement
 ```
+
+### 9. Converge the codebase with the spec (`/speckit-converge`, branch 09-speckit-converge)
+
+Diffs the implemented codebase against `spec.md`/`plan.md`/`tasks.md` and appends any remaining
+gaps as new tasks (Phase 8: Convergence) in `tasks.md`, ready for another `/speckit-implement` pass.
+
+```
+/speckit-converge
+```
