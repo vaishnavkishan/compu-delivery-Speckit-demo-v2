@@ -139,7 +139,28 @@ Manual UI check against `apps/order-portal` (started in step 2):
   each region shows a loading indicator, then — on failure — a plain error
   message with a retry action; retrying re-issues the fetch.
 
-## 10. Automated verification (run during implementation, not by this plan)
+## 10. Validate SC-003 — order status reachable within 3 UI actions
+
+Manual UI check against `apps/order-portal` (started in step 2), performed from a
+fresh page load with no identity yet selected. Count every discrete UI action
+(click, tap, or navigation) taken:
+
+1. **Action 1**: Click the header's demo identity switcher and select an
+   enterprise client identity (FR-019).
+2. If the Dashboard's Active Orders section is now showing that client's own
+   orders with each order's `LifecycleStepper` status visible, **stop here** —
+   status was reached in 1 action.
+3. If instead the lifecycle status is only shown on a per-order detail screen,
+   continue: **Action 2** — click an order card/row (from Active Orders or
+   Order History) to open `OrderDetailPage`, and (if needed) **Action 3** —
+   any further click required to reveal the status indicator on that screen.
+
+Expected: the action count from step 1 through a status being visible on
+screen is **3 or fewer**, satisfying SC-003. Repeat with a second seeded
+identity and confirm only that identity's own orders and statuses ever
+appear — never another client's.
+
+## 11. Automated verification (run during implementation, not by this plan)
 
 ```bash
 cd services/order-api && ./mvnw test                 # JUnit5/Mockito/AssertJ unit tests
@@ -147,7 +168,7 @@ cd services/order-api && ./mvnw verify -Pintegration  # Testcontainers-backed in
 cd apps/order-portal && npm run test                  # Vitest + RTL
 ```
 
-## 11. Deployment validation (k3s / Rancher Desktop)
+## 12. Deployment validation (k3s / Rancher Desktop)
 
 ```bash
 docker build -t order-api:local services/order-api/

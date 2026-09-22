@@ -24,7 +24,7 @@ description: "Task list for Bulk Hardware Order Management"
 Per `plan.md`'s Project Structure (web monorepo):
 - Backend: `services/order-api/src/main/java/com/compudelivery/orders/...`, tests in `services/order-api/src/test/java/com/compudelivery/orders/{unit,integration}/...`
 - Frontend: `apps/order-portal/src/...`, tests in `apps/order-portal/tests/...`
-- Deploy: `deploy/docker-compose.yml`, `deploy/helm/order-api/`, `deploy/helm/order-portal/`
+- Deploy: `deploy/docker-compose.yml`, `deploy/helm/order-api/`, `deploy/helm/order-portal/`, `deploy/loadtest/` (k6 scripts)
 - `services/warehouse-api/`, `services/invoice-api/`, `apps/warehouse-portal/`, `apps/invoice-portal/` are reserved directory slots for future features and are **not** created by any task below.
 
 ---
@@ -97,7 +97,7 @@ Per `plan.md`'s Project Structure (web monorepo):
 ### Implementation for User Story 1
 
 - [ ] T037 [US1] Implement `PricingService` (BigDecimal full precision through the discount step, `RoundingMode.HALF_UP` applied once to the final Net Total) in `services/order-api/src/main/java/com/compudelivery/orders/pricing/PricingService.java`
-- [ ] T038 [US1] Implement line-item ceiling validation (`@Min(1) @Max(10000)` on `LineItemInput.quantity`; custom max-100-entries validator on `CreateOrderRequest.lineItems`/`ReplaceLineItemsRequest.lineItems`) in `services/order-api/src/main/java/com/compudelivery/orders/order/LineItemInput.java`, `CreateOrderRequest.java`, `ReplaceLineItemsRequest.java`, `MaxLineItemsValidator.java`
+- [ ] T038 [US1] Implement line-item validation (`@Min(1) @Max(10000)` on `LineItemInput.quantity`; `@NotEmpty` min-1-line-item validation rejecting FR-015's empty-order case; custom max-100-entries `MaxLineItemsValidator` — all on `CreateOrderRequest.lineItems`/`ReplaceLineItemsRequest.lineItems`) in `services/order-api/src/main/java/com/compudelivery/orders/order/LineItemInput.java`, `CreateOrderRequest.java`, `ReplaceLineItemsRequest.java`, `MaxLineItemsValidator.java`
 - [ ] T039 [US1] Implement `OrderIntakeService.createOrder` (validate SKUs/ceilings, look up current contract terms, block per FR-004 before any INSERT, persist `BulkOrder` + `LineItem`s, write the initial `LifecycleTransition` and `NetTotalCalculation` rows) in `services/order-api/src/main/java/com/compudelivery/orders/order/OrderIntakeService.java` (depends on T037, T038)
 - [ ] T040 [US1] Implement the `OrderIntaken` domain event and its `@TransactionalEventListener(phase = AFTER_COMMIT)` publisher in `services/order-api/src/main/java/com/compudelivery/orders/messaging/OrderIntakenPublisher.java` (depends on T039)
 - [ ] T041 [US1] Implement `POST /api/orders` in `services/order-api/src/main/java/com/compudelivery/orders/order/OrderController.java` (depends on T039)
@@ -170,7 +170,7 @@ Per `plan.md`'s Project Structure (web monorepo):
 
 ### Implementation for User Story 4
 
-- [ ] T063 [US4] Implement `OrderLifecycleAdvancementService.advance` (operator-only; delegates to `OrderLifecycleService`'s transition map; appends a `LifecycleTransition`; optimistic-lock 409 carrying `currentStatus`) in `services/order-api/src/main/java/com/compudelivery/orders/order/OrderLifecycleAdvancementService.java` (depends on T023)
+- [ ] T063 [US4] Implement `OrderLifecycleAdvancementService.advance` (operator-only; delegates to `OrderLifecycleService`'s transition map; appends a `LifecycleTransition`; when the transition target is `SHIPPED`, explicitly set `BulkOrder.net_total_locked_at = now()` per `data-model.md`'s field spec and FR-017/Constitution Principle II; optimistic-lock 409 carrying `currentStatus`) in `services/order-api/src/main/java/com/compudelivery/orders/order/OrderLifecycleAdvancementService.java` (depends on T023)
 - [ ] T064 [US4] Implement `POST /api/orders/{orderId}/status` in `OrderController.java` (depends on T063)
 - [ ] T065 [P] [US4] Add operator-only "Advance to next stage" control and a Backordered on-hold toggle (with return to Processing) to `ActiveOrdersSection`, hidden while a client identity is selected, in `apps/order-portal/src/components/ActiveOrdersSection.tsx` (depends on T054)
 - [ ] T066 [US4] Wire role-based control visibility (client-only controls — cancel, new order, Line Item editing — hidden under an operator identity; operator controls hidden under a client identity) across `DashboardPage`/`OrderDetailPage` via `IdentityContext` in `apps/order-portal/src/context/IdentityContext.tsx` (depends on T028, T056, T046)
@@ -181,7 +181,7 @@ Per `plan.md`'s Project Structure (web monorepo):
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-**Purpose**: Deployment artifacts, remaining frontend test coverage, and end-to-end/contract validation.
+**Purpose**: Deployment artifacts, remaining frontend test coverage, end-to-end/contract validation, and performance validation against SC-001/SC-007.
 
 - [ ] T067 [P] Write `services/order-api/Dockerfile` (Maven build stage → minimal JRE runtime stage)
 - [ ] T068 [P] Write `apps/order-portal/Dockerfile` (Vite build stage → static-file serving stage)
@@ -189,8 +189,10 @@ Per `plan.md`'s Project Structure (web monorepo):
 - [ ] T070 [P] Create the `deploy/helm/order-portal/` Helm chart (Deployment/Service for the frontend image)
 - [ ] T071 [P] Add Vitest + React Testing Library tests for live pricing recomputation (`CatalogTable`/`PricingSummary`) and empty/loading/error rendering (`ActiveOrdersSection`/`OrderHistoryLog`) in `apps/order-portal/tests/`
 - [ ] T072 Diff the running service's springdoc-openapi-generated document against `contracts/openapi.yaml` and reconcile any drift
-- [ ] T073 Run `quickstart.md` steps 1–11 end-to-end against a local `docker-compose` + `mvnw spring-boot:run` + `npm run dev` stack
+- [ ] T073 Run `quickstart.md` steps 1–12 end-to-end against a local `docker-compose` + `mvnw spring-boot:run` + `npm run dev` stack
 - [ ] T074 Accessibility pass (semantic HTML, labeled form controls) over the identity switcher, catalog quantity controls, lifecycle indicator, status indicators, and cancel confirmation, per the best-effort general-practice bar (no named standard required)
+- [ ] T075 [P] Write a k6 load test simulating 500 `POST /api/orders` bulk order submissions per day (paced across a representative window, spread across multiple seeded client identities) against a locally running stack, asserting every submission stays under SC-001's 5-second response target and returns a Net Total matching SC-002's 100%-accuracy rounding policy (FR-003), in `deploy/loadtest/bulk-order-submission.js` (SC-007)
+- [ ] T076 [P] Add elapsed-time assertions to `CreateOrderIntegrationTest.java` (order submission), `ReplaceLineItemsIntegrationTest.java` (Line Item edit recalculation), and `ListOrdersIntegrationTest.java` (a single Order History page fetch), each asserting the request completes in under 5 seconds per SC-001, in `services/order-api/src/test/java/com/compudelivery/orders/integration/`
 
 ---
 
