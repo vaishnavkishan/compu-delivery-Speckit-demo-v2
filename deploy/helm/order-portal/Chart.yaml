@@ -1,0 +1,6 @@
+apiVersion: v2
+name: order-portal
+description: Helm chart for the Bulk Hardware Order Management enterprise-client/operator portal (React/Vite)
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

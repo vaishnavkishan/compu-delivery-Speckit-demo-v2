@@ -10,7 +10,7 @@ alongside the writeup. Every step includes the raw slash-command prompt used.
 TLDR;
 
 ```
-constitution -> specify -> clarify -> plan -> checklist (optional, loop) -> tasks -> analyze (optional, loop) -> implement
+constitution -> specify -> clarify -> plan -> checklist (optional, loop) -> tasks -> analyze (optional, loop) -> implement -> converge
 ```
 
 ## Prerequisites (branch name 00-speckit-initialize)
@@ -276,4 +276,15 @@ command below (commit `0033ceb`):
 /speckit-tasks  edit tasks.md T063 to explicitly set net_total_locked_at on the SHIPPED transition (G1), and T038 to name the min-1-line-item validator (U1).
 add a load-test task for SC-007 and timing assertions for SC-001 to tasks.md Phase 7, and a UI-action-count check to quickstart.md for SC-003.
 
+```
+
+### 8. Execute the implementation plan (`/speckit-implement`, branch 08-speckit-implement)
+
+Works through `tasks.md` phase by phase — Setup, then Foundational, then each user story in
+order — marking tasks `[X]` as done and pausing at checkpoints so each story can be tested
+independently before the next one starts. Here it stopped after Setup, Foundational, and User
+Story 1, delivering the MVP (bulk order intake and pricing).
+
+```
+/speckit-implement
 ```
