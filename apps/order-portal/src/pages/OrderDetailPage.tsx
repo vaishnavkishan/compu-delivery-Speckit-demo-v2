@@ -79,10 +79,6 @@ export function OrderDetailPage() {
   }
 
   async function handleSubmit() {
-    if (totalQuantity === 0) {
-      setSubmitError('Add at least one item before submitting the order.')
-      return
-    }
     const lineItems: LineItemInput[] = Object.entries(quantities)
       .filter(([, quantity]) => quantity > 0)
       .map(([sku, quantity]) => ({ sku, quantity }))
@@ -144,9 +140,13 @@ export function OrderDetailPage() {
         <PricingSummary
           grossSubtotal={grossSubtotal}
           appliedDiscountPercentage={pricedOrder?.appliedDiscountPercentage}
-          netTotal={pricedOrder?.netTotal}
         />
         {submitError && <p className="mt-2 text-sm text-red-600">{submitError}</p>}
+        {totalQuantity === 0 && (
+          <p className="mt-2 text-sm text-gray-500">
+            Add at least one item before submitting the order.
+          </p>
+        )}
         <button
           type="button"
           onClick={handleSubmit}

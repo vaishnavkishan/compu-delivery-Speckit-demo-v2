@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface LifecycleTransitionRepository extends JpaRepository<LifecycleTransition, UUID> {
 
 	List<LifecycleTransition> findByOrderIdOrderByOccurredAtAsc(UUID orderId);
+
+	List<LifecycleTransition> findByOrderIdInOrderByOccurredAtAsc(List<UUID> orderIds);
 }

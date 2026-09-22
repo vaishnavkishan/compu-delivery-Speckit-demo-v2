@@ -14,7 +14,9 @@ function ClientBadge() {
     return (
       <span className="rounded-full bg-indigo-100 px-3 py-1 text-sm text-indigo-800">
         Operator: {activeIdentity.displayName}
-        {viewingClient ? ` — viewing ${viewingClient.displayName}` : ''}
+        {viewingClient
+          ? ` — viewing ${viewingClient.displayName}${viewingClient.contractReference ? ` (Contract #${viewingClient.contractReference})` : ''}`
+          : ''}
       </span>
     )
   }
@@ -22,6 +24,7 @@ function ClientBadge() {
   return (
     <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm text-emerald-800">
       {activeIdentity.displayName}
+      {activeIdentity.contractReference ? ` (Contract #${activeIdentity.contractReference})` : ''}
     </span>
   )
 }

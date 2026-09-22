@@ -23,6 +23,9 @@ public class EnterpriseClient {
 	@Column(name = "display_name", nullable = false)
 	private String displayName;
 
+	@Column(name = "contract_reference")
+	private String contractReference;
+
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
 }

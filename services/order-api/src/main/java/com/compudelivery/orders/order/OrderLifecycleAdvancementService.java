@@ -3,6 +3,7 @@ package com.compudelivery.orders.order;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,7 +54,12 @@ public class OrderLifecycleAdvancementService {
 			order.setNetTotalLockedAt(now);
 		}
 		order.setUpdatedAt(now);
-		bulkOrderRepository.save(order);
+		try {
+			bulkOrderRepository.saveAndFlush(order);
+		} catch (ObjectOptimisticLockingFailureException ex) {
+			OrderStatus currentStatus = bulkOrderRepository.findCurrentStatusById(orderId).orElse(null);
+			throw new OrderConflictException("The order was concurrently modified; please retry", currentStatus);
+		}
 
 		List<LineItem> lineItems = lineItemRepository.findByOrderId(orderId);
 		List<LifecycleTransition> transitions = lifecycleTransitionRepository
