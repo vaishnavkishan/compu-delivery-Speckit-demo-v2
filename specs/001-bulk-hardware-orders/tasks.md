@@ -119,19 +119,19 @@ Per `plan.md`'s Project Structure (web monorepo):
 
 ### Tests for User Story 2
 
-- [ ] T047 [P] [US2] Integration test (Testcontainers) for `GET /api/orders`: 25-per-page newest-first paging with no skip/duplicate across pages, and per-client isolation (FR-008, FR-009) in `services/order-api/src/test/java/com/compudelivery/orders/integration/ListOrdersIntegrationTest.java`
-- [ ] T048 [P] [US2] Integration test (Testcontainers) for `GET /api/orders/{orderId}`: correct detail incl. transition history, identical generic 404 for a nonexistent order and one owned by a different client (FR-018) in `services/order-api/src/test/java/com/compudelivery/orders/integration/GetOrderIntegrationTest.java`
-- [ ] T049 [P] [US2] Integration test (Testcontainers) for an operator supplying `X-Operator-Id` + `X-Client-Id` on `GET /api/orders`/`GET /api/orders/{orderId}`, confirming the response matches exactly what that client would see and never widens beyond it (FR-026) in `services/order-api/src/test/java/com/compudelivery/orders/integration/OperatorScopedReadIntegrationTest.java`
+- [X] T047 [P] [US2] Integration test (Testcontainers) for `GET /api/orders`: 25-per-page newest-first paging with no skip/duplicate across pages, and per-client isolation (FR-008, FR-009) in `services/order-api/src/test/java/com/compudelivery/orders/integration/ListOrdersIntegrationTest.java`
+- [X] T048 [P] [US2] Integration test (Testcontainers) for `GET /api/orders/{orderId}`: correct detail incl. transition history, identical generic 404 for a nonexistent order and one owned by a different client (FR-018) in `services/order-api/src/test/java/com/compudelivery/orders/integration/GetOrderIntegrationTest.java`
+- [X] T049 [P] [US2] Integration test (Testcontainers) for an operator supplying `X-Operator-Id` + `X-Client-Id` on `GET /api/orders`/`GET /api/orders/{orderId}`, confirming the response matches exactly what that client would see and never widens beyond it (FR-026) in `services/order-api/src/test/java/com/compudelivery/orders/integration/OperatorScopedReadIntegrationTest.java`
 
 ### Implementation for User Story 2
 
-- [ ] T050 [US2] Implement `OrderHistoryService.listOrders` (client-scoped, `created_at DESC, id DESC`, 25-entry `OrderHistoryPage` envelope with `page`/`pageSize`/`totalCount`/`hasMore`) in `services/order-api/src/main/java/com/compudelivery/orders/order/OrderHistoryService.java` (depends on T016)
-- [ ] T051 [US2] Implement `OrderQueryService.getOrder` (client-scoped lookup incl. transitions, uniform 404 for not-found-or-not-mine) in `services/order-api/src/main/java/com/compudelivery/orders/order/OrderQueryService.java` (depends on T016, T018)
-- [ ] T052 [US2] Implement `GET /api/orders` and `GET /api/orders/{orderId}` in `OrderController.java` (depends on T050, T051)
-- [ ] T053 [P] [US2] Build `LifecycleStepper` component (permanent 5-column Intake/Processing/Backordered/Shipped/Delivered indicator) in `apps/order-portal/src/components/LifecycleStepper.tsx`
-- [ ] T054 [P] [US2] Build `ActiveOrdersSection` (one card per Active order with `LifecycleStepper`; "No active orders" empty state with a start-order CTA; independent loading/error-with-retry states per FR-028/FR-029) in `apps/order-portal/src/components/ActiveOrdersSection.tsx` (depends on T053)
-- [ ] T055 [P] [US2] Build `OrderHistoryLog` (status indicator per entry, full lifecycle transition timestamps, "reach older entries" pagination control, "No past orders" empty state, independent loading/error-with-retry states) in `apps/order-portal/src/components/OrderHistoryLog.tsx`
-- [ ] T056 [US2] Build `DashboardPage` assembling `ActiveOrdersSection` + `OrderHistoryLog` (each tracking its own `idle|loading|error|loaded` fetch state) plus the "start a new order" action navigating to `OrderDetailPage` in `apps/order-portal/src/pages/DashboardPage.tsx` (depends on T054, T055)
+- [X] T050 [US2] Implement `OrderHistoryService.listOrders` (client-scoped, `created_at DESC, id DESC`, 25-entry `OrderHistoryPage` envelope with `page`/`pageSize`/`totalCount`/`hasMore`) in `services/order-api/src/main/java/com/compudelivery/orders/order/OrderHistoryService.java` (depends on T016)
+- [X] T051 [US2] Implement `OrderQueryService.getOrder` (client-scoped lookup incl. transitions, uniform 404 for not-found-or-not-mine) in `services/order-api/src/main/java/com/compudelivery/orders/order/OrderQueryService.java` (depends on T016, T018)
+- [X] T052 [US2] Implement `GET /api/orders` and `GET /api/orders/{orderId}` in `OrderController.java` (depends on T050, T051)
+- [X] T053 [P] [US2] Build `LifecycleStepper` component (permanent 5-column Intake/Processing/Backordered/Shipped/Delivered indicator) in `apps/order-portal/src/components/LifecycleStepper.tsx`
+- [X] T054 [P] [US2] Build `ActiveOrdersSection` (one card per Active order with `LifecycleStepper`; "No active orders" empty state with a start-order CTA; independent loading/error-with-retry states per FR-028/FR-029) in `apps/order-portal/src/components/ActiveOrdersSection.tsx` (depends on T053)
+- [X] T055 [P] [US2] Build `OrderHistoryLog` (status indicator per entry, full lifecycle transition timestamps, "reach older entries" pagination control, "No past orders" empty state, independent loading/error-with-retry states) in `apps/order-portal/src/components/OrderHistoryLog.tsx`
+- [X] T056 [US2] Build `DashboardPage` assembling `ActiveOrdersSection` + `OrderHistoryLog` (each tracking its own `idle|loading|error|loaded` fetch state) plus the "start a new order" action navigating to `OrderDetailPage` in `apps/order-portal/src/pages/DashboardPage.tsx` (depends on T054, T055)
 
 **Checkpoint**: User Stories 1 and 2 both work independently — orders can be submitted and then tracked/viewed per-client.
 
@@ -145,14 +145,14 @@ Per `plan.md`'s Project Structure (web monorepo):
 
 ### Tests for User Story 3
 
-- [ ] T057 [P] [US3] Integration test (Testcontainers) for `POST /api/orders/{orderId}/cancel`: success from any Active state, 409 on double-cancel, 409 after Final Delivery, 404 for another client's order (FR-010, FR-011, FR-018) in `services/order-api/src/test/java/com/compudelivery/orders/integration/CancelOrderIntegrationTest.java`
-- [ ] T058 [P] [US3] Integration test (Testcontainers) for FR-016 first-committed-wins: concurrent cancel vs. operator advance-to-Final-Delivery on the same order — exactly one 200, the other 409 with the order's now-current status in `services/order-api/src/test/java/com/compudelivery/orders/integration/ConcurrentConflictIntegrationTest.java`
+- [X] T057 [P] [US3] Integration test (Testcontainers) for `POST /api/orders/{orderId}/cancel`: success from any Active state, 409 on double-cancel, 409 after Final Delivery, 404 for another client's order (FR-010, FR-011, FR-018) in `services/order-api/src/test/java/com/compudelivery/orders/integration/CancelOrderIntegrationTest.java`
+- [X] T058 [P] [US3] Integration test (Testcontainers) for FR-016 first-committed-wins: concurrent cancel vs. operator advance-to-Final-Delivery on the same order — exactly one 200, the other 409 with the order's now-current status in `services/order-api/src/test/java/com/compudelivery/orders/integration/ConcurrentConflictIntegrationTest.java`
 
 ### Implementation for User Story 3
 
-- [ ] T059 [US3] Implement `OrderCancellationService.cancel` (Active-state check, create the `CancellationRecord`, append a `LifecycleTransition` to `CANCELLED`, optimistic-lock 409 carrying `currentStatus`) in `services/order-api/src/main/java/com/compudelivery/orders/order/OrderCancellationService.java` (depends on T023)
-- [ ] T060 [US3] Implement `POST /api/orders/{orderId}/cancel` in `OrderController.java` (depends on T059)
-- [ ] T061 [US3] Add a cancel control with an explicit confirmation step to `ActiveOrdersSection` in `apps/order-portal/src/components/ActiveOrdersSection.tsx` (depends on T054)
+- [X] T059 [US3] Implement `OrderCancellationService.cancel` (Active-state check, create the `CancellationRecord`, append a `LifecycleTransition` to `CANCELLED`, optimistic-lock 409 carrying `currentStatus`) in `services/order-api/src/main/java/com/compudelivery/orders/order/OrderCancellationService.java` (depends on T023)
+- [X] T060 [US3] Implement `POST /api/orders/{orderId}/cancel` in `OrderController.java` (depends on T059)
+- [X] T061 [US3] Add a cancel control with an explicit confirmation step to `ActiveOrdersSection` in `apps/order-portal/src/components/ActiveOrdersSection.tsx` (depends on T054)
 
 **Checkpoint**: User Stories 1–3 all work independently.
 
@@ -166,14 +166,14 @@ Per `plan.md`'s Project Structure (web monorepo):
 
 ### Tests for User Story 4
 
-- [ ] T062 [P] [US4] Integration test (Testcontainers) for `POST /api/orders/{orderId}/status`: full forward progression, rejected skip, rejected change after a terminal state, and the Processing↔Backordered reversal succeeding without being treated as backward (FR-006, FR-012) in `services/order-api/src/test/java/com/compudelivery/orders/integration/AdvanceStatusIntegrationTest.java`
+- [X] T062 [P] [US4] Integration test (Testcontainers) for `POST /api/orders/{orderId}/status`: full forward progression, rejected skip, rejected change after a terminal state, and the Processing↔Backordered reversal succeeding without being treated as backward (FR-006, FR-012) in `services/order-api/src/test/java/com/compudelivery/orders/integration/AdvanceStatusIntegrationTest.java`
 
 ### Implementation for User Story 4
 
-- [ ] T063 [US4] Implement `OrderLifecycleAdvancementService.advance` (operator-only; delegates to `OrderLifecycleService`'s transition map; appends a `LifecycleTransition`; when the transition target is `SHIPPED`, explicitly set `BulkOrder.net_total_locked_at = now()` per `data-model.md`'s field spec and FR-017/Constitution Principle II; optimistic-lock 409 carrying `currentStatus`) in `services/order-api/src/main/java/com/compudelivery/orders/order/OrderLifecycleAdvancementService.java` (depends on T023)
-- [ ] T064 [US4] Implement `POST /api/orders/{orderId}/status` in `OrderController.java` (depends on T063)
-- [ ] T065 [P] [US4] Add operator-only "Advance to next stage" control and a Backordered on-hold toggle (with return to Processing) to `ActiveOrdersSection`, hidden while a client identity is selected, in `apps/order-portal/src/components/ActiveOrdersSection.tsx` (depends on T054)
-- [ ] T066 [US4] Wire role-based control visibility (client-only controls — cancel, new order, Line Item editing — hidden under an operator identity; operator controls hidden under a client identity) across `DashboardPage`/`OrderDetailPage` via `IdentityContext` in `apps/order-portal/src/context/IdentityContext.tsx` (depends on T028, T056, T046)
+- [X] T063 [US4] Implement `OrderLifecycleAdvancementService.advance` (operator-only; delegates to `OrderLifecycleService`'s transition map; appends a `LifecycleTransition`; when the transition target is `SHIPPED`, explicitly set `BulkOrder.net_total_locked_at = now()` per `data-model.md`'s field spec and FR-017/Constitution Principle II; optimistic-lock 409 carrying `currentStatus`) in `services/order-api/src/main/java/com/compudelivery/orders/order/OrderLifecycleAdvancementService.java` (depends on T023)
+- [X] T064 [US4] Implement `POST /api/orders/{orderId}/status` in `OrderController.java` (depends on T063)
+- [X] T065 [P] [US4] Add operator-only "Advance to next stage" control and a Backordered on-hold toggle (with return to Processing) to `ActiveOrdersSection`, hidden while a client identity is selected, in `apps/order-portal/src/components/ActiveOrdersSection.tsx` (depends on T054)
+- [X] T066 [US4] Wire role-based control visibility (client-only controls — cancel, new order, Line Item editing — hidden under an operator identity; operator controls hidden under a client identity) across `DashboardPage`/`OrderDetailPage` via `IdentityContext` in `apps/order-portal/src/context/IdentityContext.tsx` (depends on T028, T056, T046)
 
 **Checkpoint**: All four user stories are independently functional.
 
@@ -183,16 +183,16 @@ Per `plan.md`'s Project Structure (web monorepo):
 
 **Purpose**: Deployment artifacts, remaining frontend test coverage, end-to-end/contract validation, and performance validation against SC-001/SC-007.
 
-- [ ] T067 [P] Write `services/order-api/Dockerfile` (Maven build stage → minimal JRE runtime stage)
-- [ ] T068 [P] Write `apps/order-portal/Dockerfile` (Vite build stage → static-file serving stage)
-- [ ] T069 [P] Create the `deploy/helm/order-api/` Helm chart (Deployment/Service for the backend image)
-- [ ] T070 [P] Create the `deploy/helm/order-portal/` Helm chart (Deployment/Service for the frontend image)
-- [ ] T071 [P] Add Vitest + React Testing Library tests for live pricing recomputation (`CatalogTable`/`PricingSummary`) and empty/loading/error rendering (`ActiveOrdersSection`/`OrderHistoryLog`) in `apps/order-portal/tests/`
-- [ ] T072 Diff the running service's springdoc-openapi-generated document against `contracts/openapi.yaml` and reconcile any drift
-- [ ] T073 Run `quickstart.md` steps 1–12 end-to-end against a local `docker-compose` + `mvnw spring-boot:run` + `npm run dev` stack
-- [ ] T074 Accessibility pass (semantic HTML, labeled form controls) over the identity switcher, catalog quantity controls, lifecycle indicator, status indicators, and cancel confirmation, per the best-effort general-practice bar (no named standard required)
-- [ ] T075 [P] Write a k6 load test simulating 500 `POST /api/orders` bulk order submissions per day (paced across a representative window, spread across multiple seeded client identities) against a locally running stack, asserting every submission stays under SC-001's 5-second response target and returns a Net Total matching SC-002's 100%-accuracy rounding policy (FR-003), in `deploy/loadtest/bulk-order-submission.js` (SC-007)
-- [ ] T076 [P] Add elapsed-time assertions to `CreateOrderIntegrationTest.java` (order submission), `ReplaceLineItemsIntegrationTest.java` (Line Item edit recalculation), and `ListOrdersIntegrationTest.java` (a single Order History page fetch), each asserting the request completes in under 5 seconds per SC-001, in `services/order-api/src/test/java/com/compudelivery/orders/integration/`
+- [X] T067 [P] Write `services/order-api/Dockerfile` (Maven build stage → minimal JRE runtime stage)
+- [X] T068 [P] Write `apps/order-portal/Dockerfile` (Vite build stage → static-file serving stage)
+- [X] T069 [P] Create the `deploy/helm/order-api/` Helm chart (Deployment/Service for the backend image)
+- [X] T070 [P] Create the `deploy/helm/order-portal/` Helm chart (Deployment/Service for the frontend image)
+- [X] T071 [P] Add Vitest + React Testing Library tests for live pricing recomputation (`CatalogTable`/`PricingSummary`) and empty/loading/error rendering (`ActiveOrdersSection`/`OrderHistoryLog`) in `apps/order-portal/tests/`
+- [X] T072 Diff the running service's springdoc-openapi-generated document against `contracts/openapi.yaml` and reconcile any drift
+- [X] T073 Run `quickstart.md` steps 1–12 end-to-end against a local `docker-compose` + `mvnw spring-boot:run` + `npm run dev` stack
+- [X] T074 Accessibility pass (semantic HTML, labeled form controls) over the identity switcher, catalog quantity controls, lifecycle indicator, status indicators, and cancel confirmation, per the best-effort general-practice bar (no named standard required)
+- [X] T075 [P] Write a k6 load test simulating 500 `POST /api/orders` bulk order submissions per day (paced across a representative window, spread across multiple seeded client identities) against a locally running stack, asserting every submission stays under SC-001's 5-second response target and returns a Net Total matching SC-002's 100%-accuracy rounding policy (FR-003), in `deploy/loadtest/bulk-order-submission.js` (SC-007)
+- [X] T076 [P] Add elapsed-time assertions to `CreateOrderIntegrationTest.java` (order submission), `ReplaceLineItemsIntegrationTest.java` (Line Item edit recalculation), and `ListOrdersIntegrationTest.java` (a single Order History page fetch), each asserting the request completes in under 5 seconds per SC-001, in `services/order-api/src/test/java/com/compudelivery/orders/integration/`
 
 ---
 

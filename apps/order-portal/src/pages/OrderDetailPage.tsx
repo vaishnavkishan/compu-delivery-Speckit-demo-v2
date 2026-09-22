@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { apiFetch, ApiError } from '../api/client'
 import type { HardwareCatalogItem, LineItemInput, OrderDetail } from '../api/types'
 import { CatalogTable } from '../components/CatalogTable'
+import { LifecycleStepper } from '../components/LifecycleStepper'
 import { PricingSummary } from '../components/PricingSummary'
 import { useIdentity } from '../context/IdentityContext'
 
@@ -67,7 +68,10 @@ export function OrderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId])
 
-  const grossSubtotal = catalog.reduce((sum, item) => sum + (quantities[item.sku] ?? 0) * item.listPrice, 0)
+  const grossSubtotal = catalog.reduce(
+    (sum, item) => sum + (quantities[item.sku] ?? 0) * item.listPrice,
+    0,
+  )
   const totalQuantity = Object.values(quantities).reduce((sum, q) => sum + q, 0)
 
   function handleQuantityChange(sku: string, quantity: number) {
@@ -116,12 +120,23 @@ export function OrderDetailPage() {
         <h1 className="mb-4 text-xl font-semibold text-gray-900">
           {isEditing ? 'Edit Bulk Order' : 'New Bulk Order'}
         </h1>
+        {isEditing && pricedOrder && (
+          <div className="mb-6">
+            <LifecycleStepper status={pricedOrder.status} />
+          </div>
+        )}
         {orderState === 'loading' && <p className="text-gray-500">Loading order…</p>}
         {orderState === 'error' && <p className="text-red-600">Unable to load this order.</p>}
         {catalogState === 'loading' && <p className="text-gray-500">Loading catalog…</p>}
-        {catalogState === 'error' && <p className="text-red-600">Unable to load the hardware catalog.</p>}
+        {catalogState === 'error' && (
+          <p className="text-red-600">Unable to load the hardware catalog.</p>
+        )}
         {catalogState === 'loaded' && orderState !== 'loading' && orderState !== 'error' && (
-          <CatalogTable catalog={catalog} quantities={quantities} onQuantityChange={handleQuantityChange} />
+          <CatalogTable
+            catalog={catalog}
+            quantities={quantities}
+            onQuantityChange={handleQuantityChange}
+          />
         )}
       </section>
       <aside className="rounded-lg border border-gray-200 p-4">

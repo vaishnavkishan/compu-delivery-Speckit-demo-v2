@@ -10,6 +10,7 @@ import com.compudelivery.orders.order.BulkOrder;
 import com.compudelivery.orders.order.BulkOrderRepository;
 import com.compudelivery.orders.order.OrderStatus;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -50,12 +51,17 @@ class ReplaceLineItemsIntegrationTest extends IntegrationTestBase {
 		Map created = createOrder("ACME-001", List.of(Map.of("sku", "SKU-1001", "quantity", 10)));
 		String orderId = (String) created.get("id");
 
+		Instant start = Instant.now();
 		ResponseEntity<Map> response = restTemplate.exchange(baseUrl() + "/orders/" + orderId + "/line-items",
 				HttpMethod.PUT,
 				new HttpEntity<>(Map.of("lineItems", List.of(Map.of("sku", "SKU-1001", "quantity", 20))),
 						clientHeaders("ACME-001")),
 				Map.class);
+		Duration elapsed = Duration.between(start, Instant.now());
 
+		// SC-001: the recalculated Gross/Net Total is returned within 5 seconds of the
+		// edit.
+		assertThat(elapsed).isLessThan(Duration.ofSeconds(5));
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(new BigDecimal(response.getBody().get("grossTotal").toString()))
 				.isEqualByComparingTo(new BigDecimal("84000.00"));

@@ -1,0 +1,18 @@
+image: order-api:local
+imagePullPolicy: IfNotPresent
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 8080
+
+env:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order_api
+  SPRING_DATASOURCE_USERNAME: order_api
+  SPRING_DATASOURCE_PASSWORD: order_api
+  SPRING_RABBITMQ_HOST: rabbitmq
+  SPRING_RABBITMQ_PORT: "5672"
+  SPRING_RABBITMQ_USERNAME: guest
+  SPRING_RABBITMQ_PASSWORD: guest
+
+resources: {}

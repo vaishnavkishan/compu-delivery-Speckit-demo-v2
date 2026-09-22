@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.compudelivery.orders.order.BulkOrderRepository;
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -31,9 +33,14 @@ class CreateOrderIntegrationTest extends IntegrationTestBase {
 	void happyPathReturns201WithCorrectNetTotal() {
 		Map<String, Object> body = Map.of("lineItems", List.of(Map.of("sku", "SKU-1001", "quantity", 25)));
 
+		Instant start = Instant.now();
 		ResponseEntity<Map> response = restTemplate.exchange(baseUrl() + "/orders",
 				org.springframework.http.HttpMethod.POST, new HttpEntity<>(body, clientHeaders("ACME-001")), Map.class);
+		Duration elapsed = Duration.between(start, Instant.now());
 
+		// SC-001: the client receives its calculated Net Total within 5 seconds of
+		// submission.
+		assertThat(elapsed).isLessThan(Duration.ofSeconds(5));
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 		assertThat(response.getBody()).isNotNull();
 		assertThat(response.getBody().get("status")).isEqualTo("INTAKE");
