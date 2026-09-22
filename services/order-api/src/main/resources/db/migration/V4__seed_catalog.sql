@@ -1,0 +1,15 @@
+INSERT INTO hardware_catalog_item (sku, name, list_price) VALUES
+    ('SKU-1001', 'Rack Server Blade X500 (64-Core, 256GB RAM)', 4200.00),
+    ('SKU-1002', 'Enterprise Workstation Pro (32-Core, RTX 4080)', 2800.00),
+    ('SKU-1003', 'Managed 48-Port Switch (10GbE SFP+)', 1150.00),
+    ('SKU-1004', '27" UltraWide Color-Accurate Monitor', 650.00),
+    ('SKU-1005', '1U Rack Server (16-Core, 64GB RAM)', 1899.00),
+    ('SKU-1006', 'NVMe All-Flash Storage Array (32TB)', 8900.00),
+    ('SKU-1007', 'Enterprise Laptop 14" (Core Ultra 9, 32GB RAM)', 2199.00),
+    ('SKU-1008', 'PoE+ 24-Port Access Switch', 640.00),
+    ('SKU-1009', 'Wireless Access Point (Wi-Fi 7)', 320.00),
+    ('SKU-1010', 'Rack-Mount UPS (6000VA)', 2450.00),
+    ('SKU-1011', 'KVM Console Switch (16-Port)', 780.00),
+    ('SKU-1012', 'Docking Station (Quad 4K Display)', 245.00),
+    ('SKU-1013', 'Server Rack Cabinet (42U)', 1650.00),
+    ('SKU-1014', 'Firewall Appliance (10Gbps Throughput)', 5400.00);

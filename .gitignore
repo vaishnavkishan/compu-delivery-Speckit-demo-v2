@@ -1,1 +1,16 @@
 .DS_Store
+
+# Java / Maven
+target/
+*.class
+*.jar
+
+# Node.js / frontend
+node_modules/
+dist/
+*.log
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
