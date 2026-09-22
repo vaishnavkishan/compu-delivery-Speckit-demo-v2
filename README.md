@@ -10,7 +10,7 @@ alongside the writeup. Every step includes the raw slash-command prompt used.
 TLDR;
 
 ```
-constitution -> specify -> clarify -> plan -> checklist (optional, loop) -> tasks -> analyze (optional, loop) -> implement
+constitution -> specify -> clarify -> plan -> checklist (optional, loop) -> tasks -> analyze (optional, loop) -> implement -> converge
 ```
 
 ## Prerequisites (branch name 00-speckit-initialize)
