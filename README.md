@@ -9,8 +9,19 @@ alongside the writeup. Every step includes the raw slash-command prompt used.
 
 TLDR;
 
-```
-constitution -> specify -> clarify -> plan -> checklist (optional, loop) -> tasks -> analyze (optional, loop) -> implement -> converge
+```mermaid
+graph LR
+    A["constitution"] --> B["specify"] --> C["clarify"] --> D["plan"] --> E["checklist"] --> F["tasks"] --> G["analyze"] --> H["implement"] --> I["converge"]
+
+    style A fill:#e1f5ff
+    style B fill:#e1f5ff
+    style C fill:#e1f5ff
+    style D fill:#fff3e0
+    style E fill:#f3e5f5
+    style F fill:#e8f5e9
+    style G fill:#fce4ec
+    style H fill:#f1f8e9
+    style I fill:#e0f2f1
 ```
 
 ## Prerequisites (branch name 00-speckit-initialize)
