@@ -305,3 +305,18 @@ Converge only adds tasks, it doesn't execute them — run `/speckit-implement` a
 ```
 /speckit-implement
 ```
+
+## Reference Links
+
+### Must Reads
+
+- [Spec-Kit Quickstart](https://github.github.io/spec-kit/quickstart.html) — Get up and running with Spec-Kit in minutes with step-by-step instructions.
+- [Spec-Driven Development Video](https://www.youtube.com/watch?v=a9eR1xsfvHg) — Visual walkthrough of the Spec-Driven Development workflow and principles.
+- [Spec-Kit Repository](https://github.com/github/spec-kit/tree/main) — Official source repository with complete documentation, templates, and examples.
+- [Agentic SDD Reference](https://github.github.io/spec-kit/reference/agentic-sdd.html) — Deep reference guide for using AI agents in Spec-Driven Development workflows.
+
+### Additional Resources
+
+- [Bug Fixing with Spec-Kit](https://github.com/github/spec-kit/blob/main/README.md#bug-fixing) — Strategies for using Spec-Kit to systematically identify, specify, and fix bugs.
+- [Idea Assessment Process](https://github.com/github/spec-kit/tree/main#idea-assessment) — Framework for evaluating and validating ideas before investing in implementation.
+- [Integrating with Existing Projects](https://github.github.io/spec-kit/guides/existing-projects.html) — Guidance for adopting Spec-Kit in mature codebases without disrupting active development.
