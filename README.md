@@ -11,7 +11,7 @@ TLDR;
 
 ```mermaid
 graph LR
-    A["constitution"] --> B["specify"] --> C["clarify"] --> D["plan"] --> E["checklist"] --> F["tasks"] --> G["analyze"] --> H["implement"] --> I["converge"]
+    A["constitution"] --> B["specify"] --> C["clarify"] --> D["plan"] --> E["checklist (optional, loop)"] --> F["tasks"] --> G["analyze (optional, loop)"] --> H["implement"] --> I["converge"]
 
     style A fill:#e1f5ff
     style B fill:#e1f5ff
